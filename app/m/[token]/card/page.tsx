@@ -1,5 +1,6 @@
 "use client";
 
+import { DemoTag } from "@/components/ui/demo-tag";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -77,7 +78,7 @@ export default function MyCard() {
               <div className="min-w-0">
                 <h1 className="round truncate text-[24px] leading-[30px] font-black">{profile.name}</h1>
                 {profile.answer ? <p className="mt-0.5 line-clamp-2 text-[14px] leading-5 opacity-80">“{profile.answer}”</p> : null}
-                {profile.isDemo ? <p className="mt-1 text-[12px] font-semibold">Demo card</p> : null}
+                {profile.isDemo ? <p className="mt-1.5"><DemoTag className="on-plate !ml-0" /></p> : null}
               </div>
             </div>
             <div className="px-5 pt-4 pb-[18px] text-center">

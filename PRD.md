@@ -1,3 +1,5 @@
+> **Superseded.** This PRD is kept as history from the hackathon night (22 Oct 2026). The binding source of truth is now [BIBLE.md](BIBLE.md), and it wins wherever the two disagree. Parts of this PRD (scoring, "what's stopping you", deleting data after the event) no longer describe the product.
+
 # Afterflow PRD (binding source of truth)
 Owner: Tanvir (founder). Version 1.0, 22 Oct 2026, 20:57 BST. Any change to this file needs Tanvir's approval.
 Deadlines (BST): feature freeze 21:15, working build for fallback video 21:25, code freeze 21:50, demo 22:20.

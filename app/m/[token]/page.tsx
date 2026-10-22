@@ -1,5 +1,6 @@
 "use client";
 
+import { DemoTag } from "@/components/ui/demo-tag";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -82,7 +83,7 @@ export default function YourPeople() {
       <h1 className="t-display">Your people</h1>
       <div className="mt-2.5 mb-[18px] flex flex-wrap gap-2">
         <span className="pill">{EVENT_LINE}</span>
-        {me?.isDemo ? <span className="pill">Demo card</span> : null}
+        {me?.isDemo ? <DemoTag /> : null}
       </div>
 
       {!home ? (
@@ -198,7 +199,7 @@ function PendingRow({ token, item }: { token: string; item: ConnectionCard }) {
       <span className="row-main">
         <span className="t-name block truncate">
           {item.other.name}
-          {item.other.isDemo ? <span className="ml-1.5 text-[12px] font-semibold text-faint">Demo</span> : null}
+          {item.other.isDemo ? <DemoTag /> : null}
         </span>
         <span className="row-line block">
           {item.status === "waiting_for_you" ? "Did you meet? Say yes when you're ready" : `Waiting for ${first} to say yes`}
@@ -216,7 +217,7 @@ function PersonRow({ token, item }: { token: string; item: ConnectionCard }) {
       <span className="row-main">
         <span className="t-name block truncate">
           {item.other.name}
-          {item.other.isDemo ? <span className="ml-1.5 text-[12px] font-semibold text-faint">Demo</span> : null}
+          {item.other.isDemo ? <DemoTag /> : null}
         </span>
         <span className="row-line block">{item.other.answer ? `“${item.other.answer}”` : "Met at the hackathon"}</span>
       </span>
@@ -308,7 +309,7 @@ function AddSomeone({ token, open, onClose }: { token: string; open: boolean; on
                     <span className="row-main">
                       <span className="t-name block truncate">
                         {person.name}
-                        {person.isDemo ? <span className="ml-1.5 text-[12px] font-semibold text-faint">Demo</span> : null}
+                        {person.isDemo ? <DemoTag /> : null}
                       </span>
                       {person.answer ? <span className="row-line block">“{person.answer}”</span> : null}
                     </span>

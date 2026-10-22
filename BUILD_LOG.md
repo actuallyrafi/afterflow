@@ -88,3 +88,14 @@ Built on commit 500bba02005f5876dc3c8b8f037bf133b97fbc52, on the local branch v4
 - At most one gentle reminder per person, off by default. "Talked again? Mark it" is private. Your own notes are private and the shared note is visible to both.
 - The tab bar, counts and "Followed up" badges are gone.
 - Tests were rewritten around the new rules rather than dropped.
+
+### 23 Oct 2026, 00:40 BST — Review fixes after the Bible check
+
+Built on commit 21f07f12d4bde418944012d9f409f1ef9c457dd4, still on the local branch v4-redesign and preview only.
+
+- The README now tells the friendship-first story from BIBLE.md: the "into right now" question, Say hi on WhatsApp, Discord, Instagram or email, quiet Mute, Remove and Block, and Delete my card. The old pitch, scoring and "deleted after the event" lines are gone, and the three screenshots are from the new design.
+- BIBLE.md is now in the repo, and PRD.md opens with a note that BIBLE.md supersedes it.
+- The card form now says what is true: your answer shows on your card link, and your contact only shows once you both confirm.
+- The organiser page leads with Talked again (private marks, added up) and Both said yes. Connections requested and cards are small context. Nothing is per person or ranked.
+- Demo people carry the same small Demo label everywhere they appear.
+- The QR meet flow was tested end to end in two separate browsers, one of them an emulated phone, including the storage fallback.

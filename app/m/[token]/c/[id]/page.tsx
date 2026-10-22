@@ -1,5 +1,6 @@
 "use client";
 
+import { DemoTag } from "@/components/ui/demo-tag";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -107,6 +108,7 @@ export default function ConnectionPage() {
           <button type="button" className="namepill glass" onClick={() => setSheet(true)} aria-haspopup="dialog">
             <Mark name={other.name} seed={other.publicId} size={30} state={connection.muted ? "muted" : undefined} />
             <span>{other.name}</span>
+            {other.isDemo ? <DemoTag /> : null}
           </button>
         }
         right={
@@ -125,8 +127,9 @@ export default function ConnectionPage() {
       <div className="rise">
         <p className="event-line mt-1.5">Met at {EVENT_LINE}</p>
         {other.isDemo || me.isDemo ? (
-          <p className="-mt-1.5 mb-3 text-center">
-            <span className="pill">Demo card</span>
+          <p className="-mt-1.5 mb-3 text-center text-[12px] text-muted">
+            <DemoTag className="!ml-0 mr-1.5" />
+            {other.isDemo && me.isDemo ? "Both cards are demo cards" : other.isDemo ? `${first} is a demo card` : "You're viewing a demo card"}
           </p>
         ) : null}
       </div>
@@ -286,6 +289,7 @@ export default function ConnectionPage() {
         name={other.name}
         seed={other.publicId}
         muted={connection.muted}
+        isDemo={other.isDemo}
         busy={busy}
         onMute={async () => {
           const wasMuted = connection.muted;

@@ -1,5 +1,6 @@
 "use client";
 
+import { DemoTag } from "@/components/ui/demo-tag";
 import { useEffect, useRef, useState } from "react";
 import { EVENT_LINE } from "@/lib/event";
 import { firstOf } from "@/lib/handoff";
@@ -19,6 +20,7 @@ export function PersonSheet({
   name,
   seed,
   muted,
+  isDemo = false,
   busy,
   onMute,
   onRemove,
@@ -29,6 +31,7 @@ export function PersonSheet({
   name: string;
   seed: string;
   muted: boolean;
+  isDemo?: boolean;
   busy: boolean;
   onMute: () => void;
   onRemove: () => void;
@@ -67,6 +70,7 @@ export function PersonSheet({
             <div className="min-w-0">
               <h2 id="sheet-title" className="round truncate text-[20px] leading-6 font-black">
                 {name}
+                {isDemo ? <DemoTag /> : null}
               </h2>
               <p className="text-[14px] text-muted">Met at {EVENT_LINE}</p>
             </div>

@@ -401,7 +401,7 @@ export async function actOnConnection(
   }
 }
 
-export type BlockedPerson = { publicId: string; name: string; blockedAt: string };
+export type BlockedPerson = { publicId: string; name: string; isDemo: boolean; blockedAt: string };
 
 export async function listBlocked(store: Store, token: string): Promise<BlockedPerson[] | null> {
   const me = await store.getProfileByToken(token);
@@ -410,7 +410,7 @@ export async function listBlocked(store: Store, token: string): Promise<BlockedP
   const people: BlockedPerson[] = [];
   for (const block of mine) {
     const other = await store.getProfileById(block.blockedId);
-    if (other) people.push({ publicId: other.publicId, name: other.name, blockedAt: block.createdAt });
+    if (other) people.push({ publicId: other.publicId, name: other.name, isDemo: other.isDemo, blockedAt: block.createdAt });
   }
   return people.sort((left, right) => left.name.localeCompare(right.name));
 }

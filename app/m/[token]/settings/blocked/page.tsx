@@ -1,5 +1,6 @@
 "use client";
 
+import { DemoTag } from "@/components/ui/demo-tag";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { CircleLink, Sheet, Toast, TopBar, useToast } from "@/components/ui/chrome";
@@ -49,7 +50,7 @@ export default function BlockedList() {
             <li key={person.publicId} className="row">
               <Mark name={person.name} seed={person.publicId} size={48} state="muted" />
               <span className="row-main">
-                <span className="t-name block truncate">{person.name}</span>
+                <span className="t-name block truncate">{person.name}{person.isDemo ? <DemoTag /> : null}</span>
                 <span className="row-line block">Blocked {shortDate(person.blockedAt)}</span>
               </span>
               <button type="button" className="btn btn-sm btn-fill" onClick={() => setAsking(person)}>

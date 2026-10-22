@@ -2,15 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { OrganiserStats } from "@/lib/organiser";
 
-type Stats = {
-  signups: number;
-  connectionsMade: number;
-  mutualConfirms: number;
-  followedUp: number;
-  message?: string;
-  error?: string;
-};
+type Stats = Partial<OrganiserStats> & { message?: string; error?: string };
 
 export default function OrganiserPage() {
   const [passcode, setPasscode] = useState("");
@@ -76,15 +70,17 @@ export default function OrganiserPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 py-6">
-      <Link href="/" className="text-sm uppercase tracking-[0.16em] text-muted">
+    <main className="shell page-top pb-16">
+      <Link href="/" className="pill plate">
         Afterflow
       </Link>
-      <h1 className="mt-3 font-display text-5xl leading-none">Organiser</h1>
-      <p className="mt-4 text-lg">Data stays until people delete their card</p>
+      <h1 className="t-display mt-4">Organiser</h1>
+      <p className="mt-2 text-[15px] text-muted">
+        Totals only. Nothing here is per person, and nobody is ranked. Cards stay until people delete them.
+      </p>
       {!ready ? (
         <form
-          className="mt-8 flex flex-col gap-3"
+          className="mt-6 flex flex-col gap-3"
           onSubmit={(event) => {
             event.preventDefault();
             sessionStorage.setItem("afterflow.organiser", passcode);
@@ -92,36 +88,35 @@ export default function OrganiserPage() {
             setError("");
           }}
         >
-          <label className="font-semibold" htmlFor="passcode">
-            Passcode
+          <label className="field">
+            <span className="field-label">Passcode</span>
+            <input id="passcode" type="password" value={passcode} onChange={(event) => setPasscode(event.target.value)} />
           </label>
-          <input
-            id="passcode"
-            type="password"
-            value={passcode}
-            onChange={(event) => setPasscode(event.target.value)}
-            className="border border-line bg-panel px-3 py-3 text-base"
-          />
-          {error ? <p className="text-hot">{error}</p> : null}
-          <button type="submit" className="min-h-12 bg-accent font-semibold text-accent-ink">
-            Open the funnel
+          {error ? <p className="text-[14px] text-hot">{error}</p> : null}
+          <button type="submit" className="btn btn-lg btn-ink w-full">
+            Open
           </button>
         </form>
       ) : (
-        <div className="mt-8">
-          {deleted ? <p className="mb-4 text-2xl font-semibold">All data deleted</p> : null}
-          <Funnel stats={stats} />
-          <p className="mt-3 text-sm text-muted">The funnel refreshes every few seconds. Talked again (private marks, total): {stats?.followedUp ?? "…"}</p>
-          {error ? <p className="mt-3 text-hot">{error}</p> : null}
+        <div className="mt-6">
+          {deleted ? <p className="mb-4 text-[17px] font-semibold">All data deleted</p> : null}
+          <Headline stats={stats} />
+          <p className="mt-4 text-[13px] text-muted">
+            Context: {stats?.connectionsRequested ?? "…"} connections requested · {stats?.signups ?? "…"} cards. Refreshes every few seconds.
+          </p>
+          {error ? <p className="mt-3 text-[14px] text-hot">{error}</p> : null}
           {!confirming ? (
-            <button type="button" onClick={() => setConfirming(true)} className="mt-8 min-h-12 bg-hot px-4 font-semibold text-white">
+            <button type="button" onClick={() => setConfirming(true)} className="btn btn-lg btn-hot mt-8 w-full">
               Delete all data
             </button>
           ) : (
-            <div className="mt-8 border border-hot p-4">
-              <p>This wipes every signup and connection.</p>
-              <button type="button" onClick={() => void removeAll()} className="mt-3 min-h-12 bg-hot px-4 font-semibold text-white">
+            <div className="panel mt-8 p-4">
+              <p className="text-[15px]">This wipes every card and connection.</p>
+              <button type="button" onClick={() => void removeAll()} className="btn btn-lg btn-hot mt-3 w-full">
                 Yes, delete everything
+              </button>
+              <button type="button" onClick={() => setConfirming(false)} className="btn btn-plain mt-1 w-full">
+                Cancel
               </button>
             </div>
           )}
@@ -131,32 +126,22 @@ export default function OrganiserPage() {
   );
 }
 
-function Funnel({ stats }: { stats: Stats | null }) {
-  const steps = [
-    ["Sign-ups", stats?.signups],
-    ["Connections requested", stats?.connectionsMade],
-    ["Mutual confirms", stats?.mutualConfirms],
-    ["Talked again", stats?.followedUp],
-  ] as const;
-  const top = Math.max(stats?.signups ?? 0, 1);
+function Headline({ stats }: { stats: Stats | null }) {
+  const value = (n: number | undefined) => (stats && typeof n === "number" ? n : "…");
   return (
-    <ol className="flex flex-col gap-2">
-      {steps.map(([label, value], index) => {
-        const count = value ?? 0;
-        const width = stats ? Math.max(count === 0 ? 0 : 8, Math.round((count / top) * 100)) : 0;
-        return (
-          <li key={label} className="border border-line bg-panel p-3">
-            <div className="flex items-end justify-between gap-3">
-              <p className="text-sm font-semibold uppercase tracking-wide">{label}</p>
-              <p className="font-display text-4xl leading-none">{stats ? count : "…"}</p>
-            </div>
-            <div className="mt-3 h-2 bg-bg">
-              <div className="h-2 bg-accent" style={{ width: `${stats ? width : 0}%` }} />
-            </div>
-            {index < steps.length - 1 ? <p className="mt-2 text-xs uppercase tracking-[0.2em] text-muted">then</p> : null}
-          </li>
-        );
-      })}
-    </ol>
+    <div className="grid grid-cols-2 gap-3">
+      <section className="panel p-4" aria-label="Talked again">
+        <p className="text-[13px] font-semibold text-muted">Talked again</p>
+        <p className="round mt-1 text-[44px] leading-none font-black">{value(stats?.talkedAgainMarks)}</p>
+        <p className="mt-2 text-[12px] leading-4 text-muted">
+          Private marks, added up. Across {value(stats?.pairsTalkedAgain)} connections.
+        </p>
+      </section>
+      <section className="panel p-4" aria-label="Mutual confirms">
+        <p className="text-[13px] font-semibold text-muted">Both said yes</p>
+        <p className="round mt-1 text-[44px] leading-none font-black">{value(stats?.mutualConfirms)}</p>
+        <p className="mt-2 text-[12px] leading-4 text-muted">Connections confirmed by both people.</p>
+      </section>
+    </div>
   );
 }

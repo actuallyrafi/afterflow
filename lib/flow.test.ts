@@ -76,8 +76,14 @@ test("people who met both say yes before either contact is revealed", async () =
 
   assert.equal((await actOnConnection(store, jonah.secretToken, id, { action: "simulate_demo_confirm" })).status, 400);
 
-  const stats = await organiserStats(store);
-  assert.deepEqual(stats, { signups: 3, connectionsMade: 1, mutualConfirms: 1, followedUp: 1 });
+  let stats = await organiserStats(store);
+  assert.deepEqual(stats, { talkedAgainMarks: 1, pairsTalkedAgain: 1, mutualConfirms: 1, connectionsRequested: 1, signups: 3 });
+  await actOnConnection(store, jonah.secretToken, id, { action: "talked_again" });
+  stats = await organiserStats(store);
+  assert.equal(stats.talkedAgainMarks, 2);
+  assert.equal(stats.pairsTalkedAgain, 1);
+  // Aggregates only: nothing per person, no names, no rankings.
+  assert.equal(/ada|jonah|sam/i.test(JSON.stringify(stats)), false);
 
   await store.deleteAll();
   assert.equal((await store.listProfiles()).length, 0);

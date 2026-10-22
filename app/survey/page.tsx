@@ -1,5 +1,6 @@
 "use client";
 
+import { DemoTag } from "@/components/ui/demo-tag";
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CircleLink, TopBar } from "@/components/ui/chrome";
@@ -113,15 +114,15 @@ export default function CardForm() {
       <TopBar left={<CircleLink href={back} icon="back" label="Back" />} />
       <h1 className="t-title">{editing ? "Edit your card" : "Make your card"}</h1>
       <p className="mt-1 mb-4 text-[15px] leading-[21px] text-muted">
-        {editing ? "Change anything. People you've connected with see the update." : "Three quick things. Only people you both confirm see it."}
+        {editing ? "Change anything. People you've connected with see the update." : "Three quick things. Your answer shows on your card link. Your contact only shows once you both confirm."}
       </p>
 
       {meetPerson && !editing ? (
         <div className="mb-3 flex items-center gap-2.5 rounded-[22px] bg-panel py-2.5 pr-4 pl-2.5">
           <Mark name={meetPerson.name} seed={meetPerson.publicId} size={40} />
           <p className="min-w-0 flex-1 text-[14px] leading-5">
-            <span className="block truncate font-semibold">Then say yes to {meetPerson.name}</span>
-            <span className="block text-muted">Step 1 of 2{meetPerson.isDemo ? " · Demo card" : ""}</span>
+            <span className="flex min-w-0 items-center font-semibold"><span className="truncate">Then say yes to {meetPerson.name}</span>{meetPerson.isDemo ? <DemoTag /> : null}</span>
+            <span className="block text-muted">Step 1 of 2</span>
           </p>
         </div>
       ) : null}

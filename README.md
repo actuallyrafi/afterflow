@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  You already met at the hackathon. Afterflow gets the two of you talking again.
+  Keep the people you meet in your life.
 </p>
 
 <p align="center">
@@ -24,27 +24,30 @@
 </p>
 
 <p align="center">
-  <img src="docs/home.png" width="230" alt="Afterflow home page with the event QR code in its frame">
-  <img src="docs/meet.png" width="230" alt="Did you meet Maya? One tap left">
-  <img src="docs/connection.png" width="230" alt="A demo connection page quoting both people">
+  <img src="docs/home.png" width="230" alt="Your people: the people you met, each with their own colour">
+  <img src="docs/meet.png" width="230" alt="Did you meet them? Say yes after scanning someone's card">
+  <img src="docs/connection.png" width="230" alt="A connection: what you both said, a shared note and a Say hi card">
 </p>
 
-Afterflow was built in one evening at the Grok Bot Community Engineering London Hackathon (22 Oct 2026). It is for people who **already met**. It does not match you with strangers.
+At an event, talking is easy. Afterwards it gets awkward, then it stops. Afterflow is for people who **already met** in real life and want to keep casually talking, so strangers can become familiar and maybe friends. It doesn't match you with strangers, score anyone, or replace the apps you already use.
+
+It started at the Grok Bot Community Engineering London Hackathon (22 Oct 2026).
 
 ## How it works
 
-1. **Make a card.** Name, a way to reach you, and one honest answer: *what's one thing you're trying to make happen in the next month, and what's stopping you?*
-2. **Share your code.** Someone you talked to scans your QR code or opens your link, adds an optional note, and taps **Yes, we met**.
-3. **Both confirm.** Contact details stay hidden on the server until you both say yes. Saying no is quiet.
-4. **Pick it back up.** The connection page quotes what you both wrote, word for word, says plainly why it could be worth continuing, and offers optional next steps: a ready-to-send opener, a link to share, one community step from the event, or a time suggestion.
-5. **Did you follow up?** One tap, so organisers can see whether the night produced real connections.
+1. **Make a card.** Your name, one way to reach you (WhatsApp, Discord, Instagram or email), and one question: *What's something you're into right now?* That's it.
+2. **Show your code.** Someone you just talked to scans your QR code or opens your link and taps **Yes, we met**.
+3. **Both say yes.** Your contact only shows once you both confirm. If you don't, nothing happens and nobody is told.
+4. **Say hi later.** Each person you met lives in **Your people**. Open them to see what you both said and a note you can both see, then **Say hi** with a ready opener you can change: it opens WhatsApp with the message filled in, or copies it for Discord, Instagram or email.
+5. **No pressure.** At most one gentle reminder per person, and only if you turn it on. "Talked again? Mark it" is just for you. No counts, no streaks.
 
-## Private by default
+## Private and quiet
 
-- Your contact and LinkedIn are revealed only after both people confirm.
-- Recaps only quote what people actually typed. Nothing is made up.
-- Demo profiles are always labelled **Demo**.
-- Data is deleted after the event, and the organiser's "delete all" really deletes.
+- Your answer shows on your card link. Your contact only shows once you both confirm.
+- Your own notes are private. The shared note is visible to both of you.
+- **Mute**, **Remove** and **Block** are quiet: the other person is never told. Block also stops them adding you again. There is no public profile, follower count or ranking.
+- Your card stays until you remove someone or delete it. **Delete my card** really deletes your card, links and connections.
+- Demo people are always labelled **Demo**.
 
 ## Run it yourself
 
@@ -69,7 +72,7 @@ Open http://127.0.0.1:4721 (set `PORT` to change it).
 | `npm run dev` | Dev server on `0.0.0.0:${PORT:-4721}` |
 | `npm run build` and `npm start` | Production build and server |
 | `npm test` | Unit and flow tests (Node's built-in test runner) |
-| `npm run seed` | Replaces the labelled demo profiles, keeps real sign-ups |
+| `npm run seed` | Replaces the labelled demo profiles, keeps real cards |
 | `npm run seed:backup` | Makes sure the confirmed demo pair behind `/demo` exists |
 
 ### Storage
@@ -79,9 +82,9 @@ Open http://127.0.0.1:4721 (set `PORT` to change it).
 | SQLite | Default on Node 22+ | `data/afterflow.sqlite` (`SQLITE_PATH`) |
 | JSON | SQLite is unavailable (Node 20) | `data/afterflow.json` (`JSON_PATH`) |
 | Supabase | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set, `STORAGE` unset | Postgres, schema in `supabase/schema.sql` |
-| Netlify Blobs | On Netlify, or `STORAGE=netlify-blobs` | One blob per profile and connection |
+| Netlify Blobs | On Netlify, or `STORAGE=netlify-blobs` | One blob per card, connection and block |
 
-Each person gets a secret token in their page URL and in `localStorage`. There is no login.
+Each person gets a secret token in their page URL and in `localStorage`. There is no login. Older cards from the hackathon night still open.
 
 ### Environment variables
 
@@ -94,13 +97,11 @@ All optional locally. Never commit real values.
 | `STORAGE` | Force a store, e.g. `netlify-blobs` |
 | `SQLITE_PATH`, `JSON_PATH` | Local file locations |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Postgres storage. The service key is server-only |
-| `LLM_API_KEY` or `XAI_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` | Optional rephrasing of the "why" text |
-
-Scoring is deterministic. A model may only rephrase it, using just the two cards, the note and `event-context.json`. With no key, an error, or a call over 4 seconds, the built-in template is used.
+| `NEXT_PUBLIC_HANDOFF_DISCORD` | Set to `1` to show "Open in Discord" (off by default; Discord gets Copy message plus the username) |
 
 ### Deploy
 
-Netlify: `netlify.toml` runs `npm run build` and stores sign-ups in Netlify Blobs.
+Netlify: `netlify.toml` runs `npm run build` and stores cards in Netlify Blobs.
 
 ```bash
 npx netlify-cli deploy --prod
@@ -116,7 +117,11 @@ Vercel has no durable disk, so use Supabase there: set `SUPABASE_URL`, `SUPABASE
 
 ### Organiser view
 
-`/organiser` (passcode) shows a live funnel: sign-ups, connections requested, mutual confirms, followed up, plus **Delete all data**.
+`/organiser` (passcode) shows totals only, never per person and never ranked: **Talked again** (private marks, added up) and **Both said yes** (mutual confirms), with connections requested and cards as small context. It also has **Delete all data**.
+
+### Product docs
+
+[BIBLE.md](BIBLE.md) is the binding source of truth. [PRD.md](PRD.md) is the hackathon-night PRD, kept as history.
 
 </details>
 

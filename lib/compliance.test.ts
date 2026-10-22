@@ -101,3 +101,25 @@ test("the build log has timestamps and only real commits", () => {
     assert.equal(kind, "commit", sha);
   }
 });
+
+test("docs and copy match the Bible: no old pitch, truthful card copy, PRD marked superseded", () => {
+  const readme = fs.readFileSync("README.md", "utf8");
+  for (const banned of [/make happen/i, /what's stopping you/i, /worth continuing/i, /deleted after the event/i, /scor(e|ing)/i, /\bmatching\b/i]) {
+    assert.equal(banned.test(readme.replace(/doesn't match you with strangers, score anyone/, "")), false, String(banned));
+  }
+  assert.match(readme, /What's something you're into right now\?/);
+  assert.ok(fs.existsSync("BIBLE.md"));
+  assert.match(fs.readFileSync("PRD.md", "utf8").split("\n")[0], /Superseded.*BIBLE\.md/);
+  const survey = fs.readFileSync(path.join("app", "survey", "page.tsx"), "utf8");
+  assert.equal(/Only people you both confirm see it/.test(survey), false);
+  assert.match(survey, /Your answer shows on your card link\. Your contact only shows once you both confirm\./);
+});
+
+test("organiser headline is talked again and mutual confirms, with no per-person data", () => {
+  const page = fs.readFileSync(path.join("app", "organiser", "page.tsx"), "utf8");
+  assert.ok(page.indexOf("<Headline") < page.indexOf("Context:"));
+  assert.match(page, /Talked again/);
+  assert.match(page, /mutualConfirms/);
+  assert.equal(/Sign-ups/.test(page), false);
+  assert.equal(/rank|leaderboard|top \d/i.test(page.replace("nobody is ranked", "")), false);
+});

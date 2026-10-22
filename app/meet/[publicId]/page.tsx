@@ -1,5 +1,6 @@
 "use client";
 
+import { DemoTag } from "@/components/ui/demo-tag";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -76,7 +77,7 @@ export default function MeetPage() {
               <span className="pill plate mt-2">You met at {EVENT_SHORT}</span>
               {person.isDemo ? (
                 <p className="mt-2">
-                  <span className="pill plate">Demo card</span>
+                  <DemoTag className="on-plate !ml-0" />
                 </p>
               ) : null}
             </>
