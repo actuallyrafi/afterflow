@@ -56,3 +56,7 @@ Recorded with the PRD log, commit b2a9d3149d9db91fafa6c8fae2ea0ed37c641dde.
 - Automatic 48-hour and 2-week check-ins.
 - Tracking real outcomes such as jobs or projects.
 - In-app chat, accounts, notifications, and browsing other people's profiles.
+
+## Post-freeze bug fix (after 21:50 BST code freeze)
+
+- 22:30 BST, 22 Oct 2026: post-freeze bug fix only, no feature changes. Scanning a personal QR code and then making a card sent people to their own home page instead of "Yes, we met", because phone QR scanners open links in a different browser and the pending meet id lived only in sessionStorage. The meet id is now carried in the /survey URL. Commit 5b6185d.
