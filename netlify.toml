@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  STORAGE = "netlify-blobs"
+
+[context.production.environment]
+  STORAGE = "netlify-blobs"
