@@ -9,7 +9,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ token: stri
   const query = new URL(request.url).searchParams.get("q") ?? "";
   const people = await searchPeople(getStore(), token, query);
   if (!people) {
-    return Response.json({ error: "This link does not match a card." }, { status: 404 });
+    return Response.json({ error: "This card isn't available." }, { status: 404 });
   }
   return Response.json({ people }, { headers: { "Cache-Control": "no-store" } });
 }

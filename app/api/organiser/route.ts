@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   await getStore().deleteAll();
   const stats = await organiserStats(getStore());
   return Response.json(
-    { ...stats, message: "Data deleted after the event" },
+    { ...stats, message: "All data deleted" },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

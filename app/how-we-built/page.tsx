@@ -15,7 +15,7 @@ export default function HowWeBuiltPage() {
       <div className="mt-6">
         <Markdown source={source} />
       </div>
-      <p className="mt-10 text-sm text-muted">Data deleted after the event</p>
+      <p className="mt-10 text-sm text-muted">Your card stays until you delete it.</p>
     </main>
   );
 }

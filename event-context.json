@@ -1,17 +1,36 @@
 {
   "name": "Grok Bot Community Engineering London Hackathon",
+  "shortName": "Grok Bot London",
   "date": "2026-10-22",
   "venue": {
     "name": "Expedite London HQ",
     "address": "7 Lyric Square, London W6 0DA"
   },
   "schedule": [
-    { "time": "18:00", "label": "doors" },
-    { "time": "18:10", "label": "hacking" },
-    { "time": "21:50", "label": "code freeze" },
-    { "time": "22:20", "label": "top-5 demos" },
-    { "time": "22:45", "label": "awards" },
-    { "time": "23:00", "label": "close" }
+    {
+      "time": "18:00",
+      "label": "doors"
+    },
+    {
+      "time": "18:10",
+      "label": "hacking"
+    },
+    {
+      "time": "21:50",
+      "label": "code freeze"
+    },
+    {
+      "time": "22:20",
+      "label": "top-5 demos"
+    },
+    {
+      "time": "22:45",
+      "label": "awards"
+    },
+    {
+      "time": "23:00",
+      "label": "close"
+    }
   ],
   "discordChannels": [
     "#general",
@@ -25,23 +44,107 @@
     "#notion"
   ],
   "techPartners": [
-    { "name": "Supabase", "contacts": ["Isabelle Roser"] },
-    { "name": "Cognee", "contacts": ["Veljko Kovac"] },
-    { "name": "Zero", "contacts": ["Mariia Nedelkina"] },
-    { "name": "SpaceXAI/Grok Bot and Cursor", "contacts": ["Francisco Terpolilli, EU Ambassador"] },
-    { "name": "Expedite", "contacts": ["William Schulz"] }
+    {
+      "name": "Supabase",
+      "contacts": [
+        "Isabelle Roser"
+      ]
+    },
+    {
+      "name": "Cognee",
+      "contacts": [
+        "Veljko Kovac"
+      ]
+    },
+    {
+      "name": "Zero",
+      "contacts": [
+        "Mariia Nedelkina"
+      ]
+    },
+    {
+      "name": "SpaceXAI/Grok Bot and Cursor",
+      "contacts": [
+        "Francisco Terpolilli, EU Ambassador"
+      ]
+    },
+    {
+      "name": "Expedite",
+      "contacts": [
+        "William Schulz"
+      ]
+    }
   ],
   "communityPartners": [
-    { "name": "Unicorn Mafia", "contacts": ["Charlie Cheesman"] },
-    { "name": "basedcollective", "contacts": ["Fatema Al Khalifa"] },
-    { "name": "Kickstart Global", "contacts": ["Ilya Vencjuns"] },
-    { "name": "Hackradar", "contacts": ["Keanu Czirjak"] },
-    { "name": "AI Agents Lab", "contacts": ["May Yu", "Minghan Xiao"] },
-    { "name": "Corgi Community", "contacts": ["Claudia Maggi"] },
-    { "name": "Night Office", "contacts": ["Oli Kingshott", "Shreyas Raghu"] },
-    { "name": "The Hack Collective", "contacts": ["Louis Le"] },
-    { "name": "United Italian Societies", "contacts": ["Umberto Belluzzo"] },
-    { "name": "Outpost", "contacts": ["Andy Tyler", "Oscar Falemara"] },
-    { "name": "AI Pilled", "contacts": ["Nuan Zhang", "Yiran Qin"] }
+    {
+      "name": "Unicorn Mafia",
+      "contacts": [
+        "Charlie Cheesman"
+      ]
+    },
+    {
+      "name": "basedcollective",
+      "contacts": [
+        "Fatema Al Khalifa"
+      ]
+    },
+    {
+      "name": "Kickstart Global",
+      "contacts": [
+        "Ilya Vencjuns"
+      ]
+    },
+    {
+      "name": "Hackradar",
+      "contacts": [
+        "Keanu Czirjak"
+      ]
+    },
+    {
+      "name": "AI Agents Lab",
+      "contacts": [
+        "May Yu",
+        "Minghan Xiao"
+      ]
+    },
+    {
+      "name": "Corgi Community",
+      "contacts": [
+        "Claudia Maggi"
+      ]
+    },
+    {
+      "name": "Night Office",
+      "contacts": [
+        "Oli Kingshott",
+        "Shreyas Raghu"
+      ]
+    },
+    {
+      "name": "The Hack Collective",
+      "contacts": [
+        "Louis Le"
+      ]
+    },
+    {
+      "name": "United Italian Societies",
+      "contacts": [
+        "Umberto Belluzzo"
+      ]
+    },
+    {
+      "name": "Outpost",
+      "contacts": [
+        "Andy Tyler",
+        "Oscar Falemara"
+      ]
+    },
+    {
+      "name": "AI Pilled",
+      "contacts": [
+        "Nuan Zhang",
+        "Yiran Qin"
+      ]
+    }
   ]
 }

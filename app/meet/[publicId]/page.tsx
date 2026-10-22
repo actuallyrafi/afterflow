@@ -1,16 +1,20 @@
 "use client";
 
-import { clearPendingMeet, firstName, rememberMeet } from "@/lib/pending-meet";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-
-type Person = { publicId: string; name: string; role: string; isDemo: boolean };
+import { CircleLink, TopBar } from "@/components/ui/chrome";
+import { Icon } from "@/components/ui/icons";
+import { hueOf, Mark } from "@/components/ui/mark";
+import { Unavailable } from "@/components/unavailable";
+import { api, savedToken } from "@/lib/api";
+import type { PersonCard } from "@/lib/connections";
+import { EVENT_SHORT } from "@/lib/event";
+import { clearPendingMeet, firstName, rememberMeet } from "@/lib/pending-meet";
 
 export default function MeetPage() {
-  const params = useParams<{ publicId: string }>();
-  const publicId = params.publicId;
-  const [person, setPerson] = useState<Person | null>(null);
+  const { publicId } = useParams<{ publicId: string }>();
+  const [person, setPerson] = useState<PersonCard | null>(null);
   const [missing, setMissing] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -20,132 +24,144 @@ export default function MeetPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const saved = localStorage.getItem("afterflow.token");
+    const saved = savedToken();
     setToken(saved);
     setJustSaved(new URLSearchParams(window.location.search).get("saved") === "1");
     setReady(true);
+    // No card yet: remember who was scanned so card creation can come back here.
     if (!saved) rememberMeet(publicId);
   }, [publicId]);
 
   useEffect(() => {
-    void fetch(`/api/people/${encodeURIComponent(publicId)}`, { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) {
-          setMissing(true);
-          return;
-        }
-        const payload = (await response.json()) as { person: Person };
-        setPerson(payload.person);
-      })
-      .catch(() => setMissing(true));
+    void api<{ person: PersonCard }>(`/api/people/${encodeURIComponent(publicId)}`).then((result) => {
+      if (result.ok && result.data.person) setPerson(result.data.person);
+      else setMissing(true);
+    });
   }, [publicId]);
 
   async function confirm() {
     if (!token) return;
     setBusy(true);
     setError("");
-    try {
-      const response = await fetch(`/api/profiles/${token}/connections`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publicId, note }),
-      });
-      const payload = (await response.json()) as { connection?: { id: string }; error?: string };
-      if (!response.ok || !payload.connection) {
-        setError(payload.error || "Could not save that.");
-        setBusy(false);
-        return;
-      }
-      clearPendingMeet();
-      window.location.assign(`/m/${token}/c/${payload.connection.id}`);
-    } catch {
-      setError("Could not reach Afterflow.");
+    const result = await api<{ connection: { id: string } }>(`/api/profiles/${token}/connections`, {
+      method: "POST",
+      body: { publicId, note },
+    });
+    if (!result.ok || !result.data.connection) {
+      setError(result.data.error || "Couldn't save that. Try again.");
       setBusy(false);
+      return;
     }
+    clearPendingMeet();
+    window.location.assign(`/m/${token}/c/${result.data.connection.id}`);
   }
 
+  if (missing) return <Unavailable />;
+
   const first = person ? firstName(person.name) : "";
+  const exit = token ? `/m/${token}` : "/";
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 py-6">
-      <Link href="/" className="text-sm uppercase tracking-[0.16em] text-muted">
-        Afterflow
-      </Link>
-      {missing ? (
-        <div className="mt-10">
-          <h1 className="font-display text-4xl">No card on this link</h1>
-          <p className="mt-3 text-muted">Ask them to open their Afterflow card and show the code again.</p>
-        </div>
-      ) : null}
-      {!person && !missing ? <p className="mt-10 text-lg">Looking up that card…</p> : null}
-      {person && ready ? (
-        <div className="mt-6">
-          {token && justSaved ? (
-            <p role="status" className="mb-5 border border-line bg-panel px-4 py-3 text-base">
-              <span className="font-semibold text-accent">Card saved.</span> One tap left.
-            </p>
-          ) : null}
-          <p className="text-sm uppercase tracking-[0.16em] text-muted">
-            {token ? (justSaved ? "Step 2 of 2" : "Someone you met") : "Someone you met"}
-          </p>
-          <h1 className="mt-3 font-display text-5xl leading-none">
-            {token ? `Did you meet ${first}?` : person.name}
-          </h1>
-          <p className="mt-3 text-muted">
-            {token ? `${person.name} · ${person.role}` : person.role}
-          </p>
-          {person.isDemo ? <p className="mt-2 text-xs uppercase text-accent">Demo</p> : null}
-          {!token ? (
-            <div className="mt-8 border border-line bg-panel p-4">
-              <p className="text-lg leading-snug">Two quick steps to connect with {first}:</p>
-              <ol className="mt-4 flex flex-col gap-3">
-                <li className="flex items-start gap-3">
-                  <span className="flex size-7 shrink-0 items-center justify-center bg-accent text-sm font-semibold text-accent-ink">1</span>
-                  <span className="pt-0.5">Make your card. About 30 seconds.</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="flex size-7 shrink-0 items-center justify-center border border-line text-sm font-semibold">2</span>
-                  <span className="pt-0.5">Tap &ldquo;Yes, we met&rdquo;. {first} confirms too.</span>
-                </li>
-              </ol>
-              <Link
-                href={`/survey?meet=${encodeURIComponent(publicId)}`}
-                className="mt-6 flex min-h-14 w-full items-center justify-center bg-accent px-3 text-center text-base font-semibold text-accent-ink"
-              >
-                Make my card and connect with {first}
-              </Link>
-              <p className="mt-3 text-sm text-muted">Contacts stay hidden until you both confirm.</p>
-            </div>
+    <main className={`relative min-h-dvh pb-48 ${person ? `hue-${hueOf(person.publicId)}` : ""}`}>
+      <TopBar left={<CircleLink href={exit} icon="back" label="Back" />} />
+      <div className="hue-bg absolute inset-x-0 top-0 h-[300px] rounded-b-[34px]" aria-hidden="true" />
+      <div className="shell">
+        <div className="relative pt-[calc(env(safe-area-inset-top)+64px)] text-center">
+          {person ? (
+            <>
+              <div className="pop flex justify-center">
+                <Mark name={person.name} seed={person.publicId} size={96} onPlate />
+              </div>
+              <h1 className="t-display mt-3.5">{person.name}</h1>
+              <span className="pill plate mt-2">You met at {EVENT_SHORT}</span>
+              {person.isDemo ? (
+                <p className="mt-2">
+                  <span className="pill plate">Demo card</span>
+                </p>
+              ) : null}
+            </>
           ) : (
-            <div className="mt-8 border border-line bg-panel p-4">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void confirm()}
-                className="min-h-14 w-full bg-accent text-lg font-semibold text-accent-ink disabled:opacity-60"
-              >
-                {busy ? "Saving…" : "Yes, we met"}
-              </button>
-              {error ? <p className="mt-3 text-hot">{error}</p> : null}
-              <p className="mt-3 text-sm text-muted">{first} confirms too. Contacts stay hidden until then.</p>
-              <label className="mt-6 block border-t border-line pt-4">
-                <span className="flex items-baseline justify-between gap-3">
-                  <span className="font-semibold">What you talked about</span>
-                  <span className="text-sm text-muted">Optional</span>
-                </span>
-                <input
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  placeholder="e.g. the onboarding for your study app"
-                  maxLength={180}
-                  className="mt-2 w-full border border-line bg-bg px-3 py-3 text-base font-normal"
-                />
-              </label>
+            <div aria-busy="true" className="flex flex-col items-center">
+              <div className="skeleton size-24 rounded-[40%]" />
+              <div className="skeleton mt-4 h-8 w-48" />
             </div>
           )}
         </div>
+
+        {person && ready ? (
+          <div className="relative pt-[30px]">
+            {justSaved && token ? (
+              <p role="status" className="mb-3 flex items-center gap-2 rounded-[16px] bg-panel px-3.5 py-2.5 text-[14px]">
+                <Icon name="check" size={18} className="text-[color:var(--h3-deep)]" />
+                Card saved. One tap left.
+              </p>
+            ) : null}
+            {person.answer ? (
+              <>
+                <p className="mx-1 mb-1 text-[12px] font-semibold text-muted">{first} is into</p>
+                <p className="bubble !max-w-full rounded-tl-[8px] bg-panel">{person.answer}</p>
+              </>
+            ) : null}
+            {token ? (
+              <>
+                <label className="field mt-4" htmlFor="meet-note">
+                  <span className="field-label flex items-center gap-1.5">
+                    <Icon name="lock" size={14} />
+                    Private note · only you see this
+                  </span>
+                  <input
+                    id="meet-note"
+                    value={note}
+                    maxLength={180}
+                    onChange={(event) => setNote(event.target.value)}
+                    placeholder="What you talked about"
+                  />
+                </label>
+                <p className="mx-1 mt-2.5 text-[13px] leading-[18px] text-muted">
+                  {first} says yes too before either of you sees contact details.
+                </p>
+              </>
+            ) : (
+              <p className="mx-1 mt-4 text-[15px] leading-[21px] text-muted">
+                Make a quick card, then say yes. {first} says yes too before either of you sees contact details.
+              </p>
+            )}
+            {error ? (
+              <p role="alert" className="mx-1 mt-3 text-[14px] text-hot">
+                {error}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      {person && ready ? (
+        <div className="glass fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+26px)] z-20 mx-auto flex max-w-[416px] flex-col gap-0.5 rounded-[34px] p-[9px]">
+          {token ? (
+            <>
+              <button type="button" className="btn btn-lg btn-ink w-full" disabled={busy} aria-busy={busy} onClick={() => void confirm()}>
+                {busy ? "Saving…" : "Yes, we met"}
+              </button>
+              <Link
+                href={exit}
+                className="btn btn-plain w-full"
+                onClick={() => {
+                  clearPendingMeet();
+                }}
+              >
+                We didn&apos;t meet
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href={`/survey?meet=${encodeURIComponent(publicId)}`} className="btn btn-lg btn-ink w-full">
+                Make my card to say yes
+              </Link>
+              <p className="py-2.5 text-center text-[13px] text-muted">About 30 seconds. Then one tap.</p>
+            </>
+          )}
+        </div>
       ) : null}
-      <p className="mt-auto pt-10 text-sm text-muted">Data deleted after the event</p>
     </main>
   );
 }

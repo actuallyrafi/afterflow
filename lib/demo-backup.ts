@@ -1,10 +1,4 @@
-import { mutualReason } from "./evidence";
-import { scoreMatch } from "./matching";
-import { pickNextStep, type EventContext } from "./next-step";
 import type { Store } from "./store";
-import eventContextJson from "../event-context.json";
-
-const eventContext = eventContextJson as EventContext;
 
 export const BACKUP_PUBLIC_IDS = {
   ada: "demo-backup-a",
@@ -13,15 +7,8 @@ export const BACKUP_PUBLIC_IDS = {
 
 const ADA = {
   name: "Ada Quinn",
-  contact: "ada.backup.demo",
-  linkedin: "https://www.linkedin.com/in/ada-quinn-demo",
-  role: "Full-stack engineer",
-  offers: ["Coding"],
-  topOffer: "Coding",
-  needs: ["Design"],
-  topNeed: "Design",
-  availability: "Right now at the event",
-  tryingTo: "Shipping an AI study app but I can't design the onboarding",
+  contact: "discord:ada.backup.demo",
+  answer: "Finally trying the bouldering wall in Bermondsey",
   publicId: BACKUP_PUBLIC_IDS.ada,
   secretToken: "demo-backup-ada",
   isDemo: true,
@@ -29,72 +16,53 @@ const ADA = {
 
 const JONAH = {
   name: "Jonah Blake",
-  contact: "jonah.backup.demo",
-  linkedin: "https://www.linkedin.com/in/jonah-blake-demo",
-  role: "Product designer",
-  offers: ["Design"],
-  topOffer: "Design",
-  needs: ["Coding"],
-  topNeed: "Coding",
-  availability: "Right now at the event",
-  tryingTo: "I can design onboarding flows and want a real AI product to put in my portfolio.",
+  contact: "whatsapp:+447700900123",
+  answer: "Running a supper club for the first time",
   publicId: BACKUP_PUBLIC_IDS.jonah,
   secretToken: "demo-backup-jonah",
   isDemo: true,
 };
 
+const ADA_NOTE = "the bouldering chat by the snacks";
+const JONAH_NOTE = "supper club menu ideas";
+const SHARED = "Bouldering, then dumplings on Tooley St?";
+
+/** A confirmed demo pair for /demo. Nothing is scored; it's just two cards that both said yes. */
 export async function ensureBackupPair(store: Store): Promise<{ token: string; connectionId: string }> {
   let ada = await store.getProfileByPublicId(ADA.publicId);
   if (!ada) ada = await store.createProfile(ADA);
   let jonah = await store.getProfileByPublicId(JONAH.publicId);
   if (!jonah) jonah = await store.createProfile(JONAH);
 
-  const existing = (await store.listMatchesFor(ada.id)).find((match) => match.aId === jonah.id || match.bId === jonah.id);
-  const reason = mutualReason(ada, jonah);
-  const step = pickNextStep(ada, jonah, eventContext);
-  const scored = scoreMatch(
-    {
-      offers: ada.offers,
-      topOffer: ada.topOffer,
-      needs: ada.needs,
-      topNeed: ada.topNeed,
-      availability: ada.availability,
-      tryingTo: ada.tryingTo,
-      role: ada.role,
-    },
-    {
-      offers: jonah.offers,
-      topOffer: jonah.topOffer,
-      needs: jonah.needs,
-      topNeed: jonah.topNeed,
-      availability: jonah.availability,
-      tryingTo: jonah.tryingTo,
-      role: jonah.role,
-    },
-  );
-
-  let match = existing;
+  let match = (await store.listMatchesFor(ada.id)).find((row) => row.aId === jonah.id || row.bId === jonah.id) ?? null;
+  if (match && (match.removedAt || match.blockedBy || match.shadow)) {
+    await store.deleteMatch(match.id);
+    match = null;
+  }
   if (!match) {
     match = await store.createMatch({
       aId: ada.id,
       bId: jonah.id,
-      score: scored.score,
-      explanation: reason,
-      firstAction: step,
       met: true,
       aStatus: "accepted",
       bStatus: "accepted",
-      aNote: "the onboarding screens for the study app",
-      bNote: "how the study app should feel on a phone",
+      aNote: ADA_NOTE,
+      bNote: JONAH_NOTE,
     });
   }
-  if (match.aStatus !== "accepted") match = (await store.setStatus(match.id, "a", "accepted")) ?? match;
-  if (match.bStatus !== "accepted") match = (await store.setStatus(match.id, "b", "accepted")) ?? match;
-  if (!match.met) match = (await store.setMet(match.id)) ?? match;
-  const adaNote = match.aId === ada.id ? "a_note" : "b_note";
-  const jonahNote = adaNote === "a_note" ? "b_note" : "a_note";
-  match = (await store.setText(match.id, adaNote, "the onboarding screens for the study app")) ?? match;
-  match = (await store.setText(match.id, jonahNote, "how the study app should feel on a phone")) ?? match;
+  for (const block of await store.listBlocksFor(ada.id)) {
+    if (block.blockerId === jonah.id || block.blockedId === jonah.id) await store.removeBlock(block.blockerId, block.blockedId);
+  }
+  const adaIsA = match.aId === ada.id;
+  match =
+    (await store.patchMatch(match.id, {
+      aStatus: "accepted",
+      bStatus: "accepted",
+      met: true,
+      aNote: adaIsA ? ADA_NOTE : JONAH_NOTE,
+      bNote: adaIsA ? JONAH_NOTE : ADA_NOTE,
+      sharedNote: match.sharedNote || SHARED,
+    })) ?? match;
 
   return { token: ada.secretToken, connectionId: match.id };
 }

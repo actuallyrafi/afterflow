@@ -1,26 +1,22 @@
 import { getStore as getBlobStore, type Store as NetlifyStore } from "@netlify/blobs";
-import type { Submission } from "./survey";
 import {
+  applyMatchPatch,
+  applyProfilePatch,
   buildProfile,
   canonicalPair,
   initMatch,
+  normalizeMatch,
+  normalizeProfile,
   STORE_VERSION,
+  type BlockRecord,
+  type MatchPatch,
   type MatchRow,
-  type MatchStatus,
-  type MatchTextField,
   type NewMatch,
+  type NewProfile,
   type Profile,
+  type ProfilePatch,
   type Store,
 } from "./store";
-
-const MATCH_TEXT: Record<MatchTextField, keyof MatchRow> = {
-  a_note: "aNote",
-  b_note: "bNote",
-  a_link: "aLink",
-  b_link: "bLink",
-  a_time: "aTime",
-  b_time: "bTime",
-};
 
 type WriteResult = { modified: boolean; etag?: string };
 
@@ -56,6 +52,12 @@ function pairKey(aId: string, bId: string) {
 }
 function forKey(profileId: string, connectionId: string) {
   return `for/${profileId}/${connectionId}`;
+}
+function blockKey(blockerId: string, blockedId: string) {
+  return `blocks/${blockerId}/${blockedId}`;
+}
+function blockedByKey(blockedId: string, blockerId: string) {
+  return `blockedby/${blockedId}/${blockerId}`;
 }
 
 function openClient(): BlobClient {
@@ -102,14 +104,16 @@ export function createNetlifyBlobStore(injected?: BlobClient): Store {
     return keys;
   }
 
+  // Reads go through normalize*, so cards and connections saved by older versions
+  // (role, offers, score, links…) load without crashing and the old fields are ignored.
   async function readProfile(id: string): Promise<Profile | null> {
     const data = await blobs().get(profileKey(id), { type: "json", ...STRONG });
-    return data ? (data as Profile) : null;
+    return data ? normalizeProfile(data) : null;
   }
 
   async function readMatch(id: string): Promise<MatchRow | null> {
     const data = await blobs().get(connectionKey(id), { type: "json", ...STRONG });
-    return data ? (data as MatchRow) : null;
+    return data ? normalizeMatch(data) : null;
   }
 
   async function readProfiles(ids: string[]): Promise<Profile[]> {
@@ -122,18 +126,32 @@ export function createNetlifyBlobStore(injected?: BlobClient): Store {
     return rows.filter((row): row is MatchRow => Boolean(row));
   }
 
-  async function updateMatch(id: string, mutate: (row: MatchRow) => void): Promise<MatchRow | null> {
+  async function updateMatch(id: string, mutate: (row: MatchRow) => MatchRow): Promise<MatchRow | null> {
     const key = connectionKey(id);
     for (let attempt = 0; attempt < 5; attempt++) {
       const current = await blobs().getWithMetadata(key, { type: "json", ...STRONG });
-      if (!current?.data) return null;
-      const row = current.data as MatchRow;
-      mutate(row);
+      const row = current?.data ? normalizeMatch(current.data) : null;
+      if (!current || !row) return null;
+      const next = mutate(row);
       const options = current.etag ? { onlyIfMatch: current.etag } : undefined;
-      const wrote = await blobs().setJSON(key, row, options);
-      if (wrote.modified || !current.etag) return row;
+      const wrote = await blobs().setJSON(key, next, options);
+      if (wrote.modified || !current.etag) return next;
     }
     throw new Error("Could not save that connection. Try again.");
+  }
+
+  async function updateProfileRow(id: string, mutate: (row: Profile) => Profile): Promise<Profile | null> {
+    const key = profileKey(id);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const current = await blobs().getWithMetadata(key, { type: "json", ...STRONG });
+      const row = current?.data ? normalizeProfile(current.data) : null;
+      if (!current || !row) return null;
+      const next = mutate(row);
+      const options = current.etag ? { onlyIfMatch: current.etag } : undefined;
+      const wrote = await blobs().setJSON(key, next, options);
+      if (wrote.modified || !current.etag) return next;
+    }
+    throw new Error("Could not save that card. Try again.");
   }
 
   async function indexConnection(row: MatchRow) {
@@ -141,18 +159,30 @@ export function createNetlifyBlobStore(injected?: BlobClient): Store {
     await blobs().set(forKey(row.bId, row.id), "1");
   }
 
-  async function deleteConnection(row: MatchRow) {
+  async function deleteConnection(row: Pick<MatchRow, "id" | "aId" | "bId">) {
     await blobs().delete(connectionKey(row.id));
     await blobs().delete(pairKey(row.aId, row.bId));
     await blobs().delete(forKey(row.aId, row.id));
     await blobs().delete(forKey(row.bId, row.id));
   }
 
-  return {
+  async function readBlock(blockerId: string, blockedId: string): Promise<BlockRecord | null> {
+    const data = await blobs().get(blockKey(blockerId, blockedId), { type: "json", ...STRONG });
+    if (!data || typeof data !== "object") return null;
+    const row = data as Partial<BlockRecord>;
+    return { blockerId, blockedId, createdAt: typeof row.createdAt === "string" ? row.createdAt : "" };
+  }
+
+  async function deleteBlock(blockerId: string, blockedId: string) {
+    await blobs().delete(blockKey(blockerId, blockedId));
+    await blobs().delete(blockedByKey(blockedId, blockerId));
+  }
+
+  const store: Store = {
     version: STORE_VERSION,
     kind: "netlify-blobs",
 
-    async createProfile(input: Submission & { isDemo?: boolean; id?: string; publicId?: string; secretToken?: string }) {
+    async createProfile(input: NewProfile) {
       if (input.id) {
         const existing = await readProfile(input.id);
         if (existing) return existing;
@@ -199,6 +229,36 @@ export function createNetlifyBlobStore(injected?: BlobClient): Store {
       return readProfiles(keys.map((key) => key.slice("profiles/".length)));
     },
 
+    async updateProfile(id: string, patch: ProfilePatch) {
+      return updateProfileRow(id, (row) => applyProfilePatch(row, patch));
+    },
+
+    async deleteProfile(id: string) {
+      const profile = await readProfile(id);
+      // Connections, found through this person's index and, in case an index write was lost,
+      // through the pair keys that name them.
+      const matches = await store.listMatchesFor(id);
+      for (const match of matches) await deleteConnection(match);
+      for (const key of await listKeys("pairs/")) {
+        const ids = key.slice("pairs/".length).split("_");
+        if (!ids.includes(id)) continue;
+        const connectionId = await blobs().get(key, { ...STRONG });
+        if (typeof connectionId === "string" && connectionId) {
+          const [aId, bId] = ids;
+          await deleteConnection({ id: connectionId, aId, bId });
+        } else {
+          await blobs().delete(key);
+        }
+      }
+      for (const key of await listKeys(`for/${id}/`)) await blobs().delete(key);
+      for (const block of await store.listBlocksFor(id)) await deleteBlock(block.blockerId, block.blockedId);
+      if (profile) {
+        if (profile.secretToken) await blobs().delete(tokenKey(profile.secretToken));
+        if (profile.publicId) await blobs().delete(publicKey(profile.publicId));
+      }
+      await blobs().delete(profileKey(id));
+    },
+
     async createMatch(input: NewMatch) {
       if (input.id) {
         const existing = await readMatch(input.id);
@@ -218,7 +278,8 @@ export function createNetlifyBlobStore(injected?: BlobClient): Store {
         if (typeof winner === "string" && winner && winner !== row.id) {
           const existing = await readMatch(winner);
           if (existing) return existing;
-          row.id = winner;
+          // A stale pair claim with no connection behind it: take it over.
+          await blobs().set(key, row.id);
         }
       }
       await blobs().setJSON(connectionKey(row.id), row);
@@ -241,54 +302,44 @@ export function createNetlifyBlobStore(injected?: BlobClient): Store {
       return readMatches(ids);
     },
 
-    async setStatus(id: string, side: "a" | "b", status: MatchStatus) {
-      return updateMatch(id, (row) => {
-        if (side === "a") row.aStatus = status;
-        else row.bStatus = status;
-      });
+    async patchMatch(id: string, patch: MatchPatch) {
+      return updateMatch(id, (row) => applyMatchPatch(row, patch));
     },
 
-    async setFollowUp(id: string, side: "a" | "b", value: "yes" | "not_yet") {
-      const at = new Date().toISOString();
-      return updateMatch(id, (row) => {
-        if (side === "a") {
-          row.aFollowUp = value;
-          row.aFollowUpAt = at;
-        } else {
-          row.bFollowUp = value;
-          row.bFollowUpAt = at;
-        }
-      });
+    async deleteMatch(id: string) {
+      const row = await readMatch(id);
+      if (row) await deleteConnection(row);
+      else await blobs().delete(connectionKey(id));
     },
 
-    async setText(id: string, field: MatchTextField, value: string) {
-      const prop = MATCH_TEXT[field];
-      return updateMatch(id, (row) => {
-        (row[prop] as string) = value;
-      });
+    async addBlock(blockerId: string, blockedId: string) {
+      const existing = await readBlock(blockerId, blockedId);
+      if (existing) return existing;
+      const record: BlockRecord = { blockerId, blockedId, createdAt: new Date().toISOString() };
+      await blobs().setJSON(blockKey(blockerId, blockedId), record);
+      await blobs().set(blockedByKey(blockedId, blockerId), "1");
+      return record;
     },
 
-    async setMet(id: string) {
-      return updateMatch(id, (row) => {
-        row.met = true;
-      });
+    async removeBlock(blockerId: string, blockedId: string) {
+      await deleteBlock(blockerId, blockedId);
     },
 
-    async updateScore(id: string, score: number) {
-      return updateMatch(id, (row) => {
-        row.score = score;
-      });
+    async listBlocksFor(profileId: string) {
+      const mine = (await listKeys(`blocks/${profileId}/`)).map((key) => key.slice(`blocks/${profileId}/`.length));
+      const theirs = (await listKeys(`blockedby/${profileId}/`)).map((key) => key.slice(`blockedby/${profileId}/`.length));
+      const rows = await Promise.all([
+        ...mine.map((blockedId) => readBlock(profileId, blockedId)),
+        ...theirs.map((blockerId) => readBlock(blockerId, profileId)),
+      ]);
+      return rows.filter((row): row is BlockRecord => Boolean(row));
     },
 
     async deleteDemos() {
-      const profiles = await this.listProfiles();
+      const profiles = await store.listProfiles();
       for (const profile of profiles) {
         if (!profile.isDemo) continue;
-        const matches = await this.listMatchesFor(profile.id);
-        for (const match of matches) await deleteConnection(match);
-        await blobs().delete(profileKey(profile.id));
-        await blobs().delete(tokenKey(profile.secretToken));
-        await blobs().delete(publicKey(profile.publicId));
+        await store.deleteProfile(profile.id);
       }
     },
 
@@ -296,4 +347,5 @@ export function createNetlifyBlobStore(injected?: BlobClient): Store {
       await blobs().deleteAll();
     },
   };
+  return store;
 }

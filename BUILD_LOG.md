@@ -74,3 +74,17 @@ After the demo, from Atelier's design review. Built on commit 07e3c59ad01dc70a9d
 - Tests: separate test stores no longer share one JSON file on Node 20, and the build log check accepts the hackathon commits that were squashed into this public repo's first commit.
 - The README is rewritten for people who just want to try it.
 - The colour and type restyle is on hold for a new visual direction.
+
+### 23 Oct 2026, 00:20 BST — v4 redesign: Your people
+
+Built on commit 500bba02005f5876dc3c8b8f037bf133b97fbc52, on the local branch v4-redesign. Preview only, not production.
+
+- New look across every screen: people get a mark in their own colour, the connection page reads like a short chat ("Met at", what you both said, "You both said yes"), and frosted controls float over the content. Dark mode follows the phone's setting. Reduced motion and reduced transparency are respected.
+- The card is three things: name, one way to reach you (WhatsApp, Discord, Instagram or email) and "What's something you're into right now?". Role, chips, top picks, LinkedIn, availability and the old goal question are gone. Old cards still open.
+- The scoring code is deleted. There is no score and no "why" line, just what you both said and a shared note.
+- Mute, Remove and Block are quiet and never tell the other person. Remove and Block have firmer confirms and an Undo toast. Blocked people are listed under Your people, and blocking stops them adding you again. There is no Report.
+- Cards stay until someone removes a connection or deletes their card. "Delete my card" asks you to type your name, then really removes the card, its links and its connections.
+- "Say hi" has an editable opener. WhatsApp opens with the message ready; Discord, Instagram and email get Copy plus the handle, or an email link. "Open in Discord" waits behind a flag that is off.
+- At most one gentle reminder per person, off by default. "Talked again? Mark it" is private. Your own notes are private and the shared note is visible to both.
+- The tab bar, counts and "Followed up" badges are gone.
+- Tests were rewritten around the new rules rather than dropped.

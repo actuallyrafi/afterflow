@@ -1,316 +1,326 @@
 "use client";
 
-import { CONNECTION_NEXT_STEPS } from "@/lib/evidence";
-import { firstName } from "@/lib/pending-meet";
-import { withoutRepeats } from "@/lib/recap";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { NoteCard } from "@/components/note-card";
+import { PersonSheet } from "@/components/person-sheet";
+import { SayHi } from "@/components/say-hi";
+import { stashToast, Toast, TopBar, useToast } from "@/components/ui/chrome";
+import { Icon } from "@/components/ui/icons";
+import { hueOf, Mark } from "@/components/ui/mark";
+import { api, shortDate } from "@/lib/api";
+import type { ConnectionCard } from "@/lib/connections";
+import { EVENT_LINE, EVENT_SHORT } from "@/lib/event";
+import { firstOf } from "@/lib/handoff";
 
-type Journey = {
-  recap: string[];
-  why: string;
-  communityStep: string;
-  opener: string;
-  myLink: string;
-  theirLink: string;
-  myTime: string;
-  theirTime: string;
-};
-
-type ProfileHeader = { name: string; isDemo?: boolean };
-
-type Connection = {
-  id: string;
-  status: string;
-  statusLabel: string;
-  mutual: boolean;
-  myFollowUp: "yes" | "not_yet" | null;
-  myFollowUpAt: string | null;
-  myNote: string;
-  theirNote: string;
-  other: { name: string; role: string; isDemo: boolean; contact?: string; linkedin?: string };
-  journey: Journey | null;
-};
+type Loaded = { connection: ConnectionCard; me: { name: string; isDemo: boolean } };
 
 export default function ConnectionPage() {
-  const params = useParams<{ token: string; id: string }>();
-  const { token, id } = params;
-  const [profile, setProfile] = useState<ProfileHeader | null>(null);
-  const [connection, setConnection] = useState<Connection | null>(null);
+  const { token, id } = useParams<{ token: string; id: string }>();
+  const router = useRouter();
+  const [data, setData] = useState<Loaded | null>(null);
   const [missing, setMissing] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [link, setLink] = useState("");
-  const [time, setTime] = useState("");
+  const [note, setNote] = useState("");
+  const { toast, show, hide } = useToast();
+  const home = `/m/${token}`;
 
   const load = useCallback(async () => {
-    if (!token) return;
-    try {
-      const response = await fetch(`/api/profiles/${token}`, { cache: "no-store" });
-      if (!response.ok) {
-        setMissing(true);
-        return;
-      }
-      const payload = (await response.json()) as { profile?: ProfileHeader; connections?: Connection[] };
-      setProfile(payload.profile ?? null);
-      const found = payload.connections?.find((item) => item.id === id) ?? null;
-      setConnection(found);
-      setMissing(!found);
-      if (found?.journey) {
-        setLink((current) => current || found.journey?.myLink || "");
-        setTime((current) => current || found.journey?.myTime || "");
-      }
-    } catch {
+    const result = await api<Loaded>(`/api/profiles/${token}/connections/${id}`);
+    if (result.ok && result.data.connection) {
+      setData(result.data);
+      setMissing(false);
+    } else if (result.status === 404) {
       setMissing(true);
     }
   }, [token, id]);
 
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load(), 4000);
-    return () => window.clearInterval(timer);
   }, [load]);
 
-  async function act(action: string, extra?: { link?: string; time?: string }) {
+  // While someone hasn't said yes yet, check back now and then. Once connected, nothing polls.
+  const waiting = data && !data.connection.mutual;
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, 6000);
+    return () => window.clearInterval(timer);
+  }, [waiting, load]);
+
+  async function act(action: string, extra: Record<string, unknown> = {}) {
     setBusy(true);
     setError("");
-    try {
-      const response = await fetch(`/api/profiles/${token}/connections/${id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, ...extra }),
-      });
-      const payload = (await response.json()) as { connection?: Connection; declined?: boolean; error?: string };
-      if (payload.declined) {
-        window.location.assign(`/m/${token}`);
-        return;
-      }
-      if (!response.ok || !payload.connection) {
-        setError(payload.error || "Could not save that.");
-        setBusy(false);
-        return;
-      }
-      setConnection(payload.connection);
-      setMissing(false);
-    } catch {
-      setError("Could not reach Afterflow.");
-    } finally {
-      setBusy(false);
+    const result = await api<Partial<Loaded> & { declined?: boolean; removed?: boolean; blocked?: boolean }>(
+      `/api/profiles/${token}/connections/${id}`,
+      { method: "POST", body: { action, ...extra } },
+    );
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.data.error || "Couldn't save that. Try again.");
+      return null;
     }
+    if (result.data.connection) setData((current) => (current ? { ...current, connection: result.data.connection! } : current));
+    return result.data;
   }
 
-  async function copyOpener() {
-    if (!connection?.journey) return;
-    try {
-      await navigator.clipboard.writeText(connection.journey.opener);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
+  if (missing) {
+    return (
+      <main className="shell page-top flex flex-col items-center justify-center pb-24 text-center">
+        <TopBar left={<BackLink href={home} />} />
+        <h1 className="t-title mt-24">This connection isn&apos;t here anymore.</h1>
+        <p className="mt-2 text-[15px] text-muted">It may have been removed. Nothing else changed.</p>
+        <Link href={home} className="btn btn-lg btn-ink mt-6 w-[220px]">
+          Back to Your people
+        </Link>
+      </main>
+    );
   }
 
-  const followed =
-    connection?.myFollowUp && connection.myFollowUpAt
-      ? `You said ${connection.myFollowUp === "yes" ? "yes" : "not yet"} at ${new Date(connection.myFollowUpAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" })}`
-      : null;
+  if (!data) {
+    return (
+      <main className="shell page-top" aria-busy="true">
+        <TopBar left={<BackLink href={home} />} alwaysGlass />
+        <div className="skeleton mx-auto mt-6 h-4 w-48" />
+        <div className="skeleton mt-6 h-12 w-64" />
+        <div className="skeleton mt-3 ml-auto h-12 w-56" />
+        <div className="skeleton mt-8 h-40 w-full" />
+      </main>
+    );
+  }
 
-  const otherFirst = connection ? firstName(connection.other.name) : "";
-  const why = connection?.journey ? withoutRepeats(connection.journey.why, connection.journey.recap) : "";
+  const { connection, me } = data;
+  const other = connection.other;
+  const first = firstOf(other.name);
+  const contact = other.contact ?? "";
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 py-6">
-      <Link href={`/m/${token}`} className="text-sm uppercase tracking-[0.16em] text-muted">
-        My connections
-      </Link>
-      {profile?.isDemo ? <p className="mt-4 text-xs uppercase text-accent">{profile.name} · Demo</p> : null}
-      {!connection && !missing ? <p className="mt-10 text-lg">Loading…</p> : null}
-      {missing ? (
-        <div className="mt-10">
-          <h1 className="font-display text-4xl">Connection not on this card</h1>
-          <Link href={`/m/${token}`} className="mt-6 inline-flex min-h-12 items-center bg-accent px-4 font-semibold text-accent-ink">
-            Back
-          </Link>
-        </div>
-      ) : null}
-      {connection ? (
-        <div className="mt-6 flex flex-col gap-6">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide">{connection.statusLabel}</p>
-            <h1 className="mt-2 font-display text-5xl leading-none">{connection.other.name}</h1>
-            <p className="mt-2 text-muted">{connection.other.role}</p>
-            {connection.other.isDemo ? <p className="mt-1 text-xs uppercase text-accent">Demo</p> : null}
+    <main className="shell page-top pb-16">
+      <TopBar
+        alwaysGlass
+        left={<BackLink href={home} plain />}
+        center={
+          <button type="button" className="namepill glass" onClick={() => setSheet(true)} aria-haspopup="dialog">
+            <Mark name={other.name} seed={other.publicId} size={30} state={connection.muted ? "muted" : undefined} />
+            <span>{other.name}</span>
+          </button>
+        }
+        right={
+          <button
+            type="button"
+            className="circle"
+            aria-label={`More options for ${first}`}
+            aria-haspopup="dialog"
+            onClick={() => setSheet(true)}
+          >
+            <Icon name="more" />
+          </button>
+        }
+      />
+
+      <div className="rise">
+        <p className="event-line mt-1.5">Met at {EVENT_LINE}</p>
+        {other.isDemo || me.isDemo ? (
+          <p className="-mt-1.5 mb-3 text-center">
+            <span className="pill">Demo card</span>
+          </p>
+        ) : null}
+      </div>
+
+      {other.answer ? (
+        <div className="rise" style={{ animationDelay: "40ms" }}>
+          <p className="speaker">{first}</p>
+          <div className={`them hue-${hueOf(other.publicId)}`}>
+            <Mark name={other.name} seed={other.publicId} size={30} />
+            <p className="bubble">{other.answer}</p>
           </div>
-
-          {!connection.mutual ? (
-            <section className="border border-line bg-panel p-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide">
-                {connection.status === "waiting_for_you" ? `Did you meet ${otherFirst}?` : `Sent to ${otherFirst}`}
-              </h2>
-              {connection.theirNote ? <p className="mt-3 text-base leading-relaxed">{otherFirst} noted &ldquo;{connection.theirNote}&rdquo;</p> : null}
-              {connection.myNote ? <p className="mt-3 text-base leading-relaxed">You noted &ldquo;{connection.myNote}&rdquo;</p> : null}
-              <p className="mt-3 text-sm text-muted">Contact and LinkedIn stay hidden until you both say yes.</p>
-              {connection.status === "waiting_for_you" ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void act("confirm")}
-                  className="mt-4 min-h-12 w-full bg-accent font-semibold text-accent-ink disabled:opacity-60"
-                >
-                  Yes, we met
-                </button>
-              ) : (
-                <p className="mt-4 text-base">Waiting for {otherFirst} to confirm.</p>
-              )}
-              {connection.other.isDemo && connection.status === "waiting_for_them" ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void act("simulate_demo_confirm")}
-                  className="mt-3 min-h-12 w-full border border-accent px-3 text-left text-sm"
-                >
-                  Demo only — simulate them confirming
-                </button>
-              ) : null}
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void act("decline")}
-                className="mt-3 min-h-12 w-full text-sm text-muted"
-              >
-                We did not meet
-              </button>
-            </section>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <section className="border border-line bg-panel p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide">1 · You and {otherFirst}</h2>
-                <ul className="mt-3 flex flex-col gap-3 text-base leading-relaxed">
-                  {connection.journey?.recap.map((line) => (
-                    <li key={line} className={line.includes('"') ? "border-l-2 border-accent pl-3" : "text-muted"}>
-                      {line}
-                    </li>
-                  ))}
-                </ul>
-                {connection.other.contact ? (
-                  <p className="mt-4 text-base">
-                    <span className="font-semibold">Contact. </span>
-                    {connection.other.contact}
-                  </p>
-                ) : null}
-                {connection.other.linkedin ? (
-                  <p className="mt-2 break-all text-base">
-                    <span className="font-semibold">LinkedIn. </span>
-                    <a href={connection.other.linkedin} className="underline">
-                      {connection.other.linkedin}
-                    </a>
-                  </p>
-                ) : null}
-              </section>
-
-              <section className="border border-line bg-panel p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide">2 · Why it is worth continuing</h2>
-                <p className="mt-3 text-base leading-relaxed">{why || connection.journey?.why}</p>
-              </section>
-
-              <section className="border border-accent bg-panel p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide">3 · Ways to keep going</h2>
-                <p className="mt-2 text-sm text-muted">Optional. Pick any. Chatting online is a perfectly fine outcome.</p>
-
-                <div className="mt-4 border-t border-line pt-4">
-                  <h3 className="font-semibold">{CONNECTION_NEXT_STEPS[0].label}</h3>
-                  <p className="mt-2 border-l-2 border-line pl-3 text-base leading-relaxed">{connection.journey?.opener}</p>
-                  <button type="button" onClick={() => void copyOpener()} className="mt-3 min-h-12 w-full bg-accent font-semibold text-accent-ink">
-                    {copied ? "Opener copied" : "Copy opener for Discord, email, or LinkedIn"}
-                  </button>
-                </div>
-
-                <form
-                  className="mt-4"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void act("share_link", { link });
-                  }}
-                >
-                  <p className="text-sm font-semibold">Or share a link or repo in that chat</p>
-                  <input
-                    value={link}
-                    onChange={(event) => setLink(event.target.value)}
-                    placeholder="github.com/you/project"
-                    className="mt-2 w-full border border-line bg-bg px-3 py-3 text-base"
-                  />
-                  <button type="submit" disabled={busy} className="mt-2 min-h-12 w-full border border-line font-semibold disabled:opacity-60">
-                    Save link
-                  </button>
-                  {connection.journey?.theirLink ? (
-                    <p className="mt-2 break-all text-sm">
-                      {otherFirst} shared {connection.journey.theirLink}
-                    </p>
-                  ) : null}
-                  {connection.journey?.myLink ? <p className="mt-2 break-all text-sm">You shared {connection.journey.myLink}</p> : null}
-                </form>
-
-                <div className="mt-4 border-t border-line pt-4">
-                  <h3 className="font-semibold">{CONNECTION_NEXT_STEPS[1].label}</h3>
-                  <p className="mt-2 text-base">{connection.journey?.communityStep}</p>
-                </div>
-
-                <form
-                  className="mt-4 border-t border-line pt-4"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void act("suggest_time", { time });
-                  }}
-                >
-                  <h3 className="font-semibold">{CONNECTION_NEXT_STEPS[2].label}</h3>
-                  <p className="mt-1 text-sm text-muted">Suggestion only. Leave it blank and keep talking online.</p>
-                  <input
-                    value={time}
-                    onChange={(event) => setTime(event.target.value)}
-                    placeholder="Thursday after work, or next Tuesday"
-                    className="mt-2 w-full border border-line bg-bg px-3 py-3 text-base"
-                  />
-                  <button type="submit" disabled={busy} className="mt-2 min-h-12 w-full border border-line font-semibold disabled:opacity-60">
-                    Save suggestion
-                  </button>
-                  {connection.journey?.theirTime ? (
-                    <p className="mt-2 text-sm">
-                      {otherFirst} suggested {connection.journey.theirTime}
-                    </p>
-                  ) : null}
-                  {connection.journey?.myTime ? <p className="mt-2 text-sm">You suggested {connection.journey.myTime}</p> : null}
-                </form>
-              </section>
-
-              <section className="border border-line bg-panel p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide">Did you follow up?</h2>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void act("follow_up_yes")}
-                    className={`min-h-12 font-semibold ${connection.myFollowUp === "yes" ? "bg-accent text-accent-ink" : "border border-line"}`}
-                  >
-                    Yes
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void act("follow_up_not_yet")}
-                    className={`min-h-12 font-semibold ${connection.myFollowUp === "not_yet" ? "bg-accent text-accent-ink" : "border border-line"}`}
-                  >
-                    Not yet
-                  </button>
-                </div>
-                {followed ? <p className="mt-2 text-sm">{followed}</p> : null}
-              </section>
-            </div>
-          )}
-          {error ? <p className="text-hot">{error}</p> : null}
+        </div>
+      ) : (
+        <p className="event-line">
+          {first} didn&apos;t add anything yet. You met at {EVENT_SHORT} — that&apos;s plenty to start with.
+        </p>
+      )}
+      {connection.myAnswer ? (
+        <div className="me rise mt-2.5" style={{ animationDelay: "80ms" }}>
+          <p className="bubble">{connection.myAnswer}</p>
         </div>
       ) : null}
-      <p className="mt-auto pt-10 text-sm text-muted">Data deleted after the event</p>
+
+      {connection.status === "connected" ? (
+        <>
+          <p className="event-line rise" style={{ animationDelay: "120ms" }}>
+            You both said yes
+          </p>
+          <div className="rise flex flex-col gap-2" style={{ animationDelay: "160ms" }}>
+            <NoteCard
+              kind="shared"
+              value={connection.sharedNote}
+              placeholder={`Something you and ${first} want to remember`}
+              max={280}
+              onSave={async (text) => Boolean(await act("shared_note", { text }))}
+            />
+            <NoteCard
+              kind="private"
+              value={connection.myNote}
+              placeholder="Add a private note"
+              max={180}
+              onSave={async (text) => Boolean(await act("my_note", { text }))}
+            />
+          </div>
+          <div className="rise" style={{ animationDelay: "200ms" }}>
+            <SayHi connectionId={connection.id} theirName={other.name} theirSeed={other.publicId} contact={contact} myName={me.name} />
+          </div>
+          <div className="flex items-center justify-between gap-3 px-1.5 pt-4">
+            {connection.talkedAgain ? (
+              <span className="flex items-center gap-1.5 text-[15px]">
+                <Icon name="check" size={18} className="text-[color:var(--h3-deep)]" />
+                Talked again{connection.talkedAgainAt ? ` · ${shortDate(connection.talkedAgainAt)}` : ""}
+                <button
+                  type="button"
+                  className="ml-1 text-[14px] text-muted underline underline-offset-[3px]"
+                  disabled={busy}
+                  onClick={() => void act("talked_again_undo")}
+                >
+                  Unmark
+                </button>
+              </span>
+            ) : (
+              <span className="text-[15px]">
+                Talked again?{" "}
+                <button
+                  type="button"
+                  className="font-semibold underline underline-offset-[3px]"
+                  disabled={busy}
+                  onClick={() => void act("talked_again")}
+                >
+                  Mark it
+                </button>
+              </span>
+            )}
+            <span className="text-[12px] text-faint">Only you see this</span>
+          </div>
+        </>
+      ) : null}
+
+      {connection.status === "waiting_for_them" ? (
+        <>
+          <p className="event-line">Waiting for {first} to say yes. No rush — their details appear here when they do.</p>
+          <NoteCard
+            kind="private"
+            value={connection.myNote}
+            placeholder="Add a private note"
+            max={180}
+            onSave={async (text) => Boolean(await act("my_note", { text }))}
+          />
+          {other.isDemo ? (
+            <button
+              type="button"
+              className="btn btn-fill mt-4 w-full"
+              disabled={busy}
+              onClick={() => void act("simulate_demo_confirm")}
+            >
+              Demo only: pretend {first} said yes
+            </button>
+          ) : null}
+        </>
+      ) : null}
+
+      {connection.status === "waiting_for_you" ? (
+        <section className="panel mt-5 p-4" aria-labelledby="did-you-meet">
+          <h2 id="did-you-meet" className="round text-[22px] leading-7 font-black">
+            Did you meet {first}?
+          </h2>
+          <p className="mt-1 text-[14px] text-muted">Say yes when you&apos;re ready. Contact details appear once you both do.</p>
+          <label className="field mt-3 bg-bg" htmlFor="confirm-note">
+            <span className="field-label flex items-center gap-1.5">
+              <Icon name="lock" size={14} />
+              Private note · only you see this
+            </span>
+            <input
+              id="confirm-note"
+              value={note}
+              maxLength={180}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="What you talked about"
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-lg btn-ink mt-4 w-full"
+            disabled={busy}
+            aria-busy={busy}
+            onClick={async () => {
+              const done = await act("confirm");
+              if (done && note.trim()) await act("my_note", { text: note.trim() });
+            }}
+          >
+            Yes, we met
+          </button>
+          <button
+            type="button"
+            className="btn btn-plain mt-1 w-full"
+            disabled={busy}
+            onClick={async () => {
+              const done = await act("decline");
+              if (done) router.push(home);
+            }}
+          >
+            We didn&apos;t meet
+          </button>
+        </section>
+      ) : null}
+
+      {error ? (
+        <p role="alert" className="mt-4 text-center text-[14px] text-hot">
+          {error}
+        </p>
+      ) : null}
+
+      <PersonSheet
+        open={sheet}
+        onClose={() => setSheet(false)}
+        name={other.name}
+        seed={other.publicId}
+        muted={connection.muted}
+        busy={busy}
+        onMute={async () => {
+          const wasMuted = connection.muted;
+          const done = await act(wasMuted ? "unmute" : "mute");
+          setSheet(false);
+          if (!done) return;
+          show(wasMuted ? `${first} is unmuted` : `${first} is muted`, {
+            ms: 6000,
+            undo: async () => {
+              await act(wasMuted ? "mute" : "unmute");
+            },
+          });
+        }}
+        onRemove={async () => {
+          const done = await act("remove");
+          if (!done) return;
+          stashToast({ text: `Removed ${first}`, action: "undo_remove", connectionId: connection.id }, 8000);
+          router.push(home);
+        }}
+        onBlock={async () => {
+          const done = await act("block");
+          if (!done) return;
+          stashToast({ text: `${first} is blocked`, action: "undo_block", connectionId: connection.id }, 8000);
+          router.push(home);
+        }}
+      />
+      <Toast toast={toast} onDone={hide} />
     </main>
+  );
+}
+
+function BackLink({ href, plain = false }: { href: string; plain?: boolean }) {
+  return (
+    <Link href={href} aria-label="Back to Your people" className={`circle ${plain ? "" : "glass"}`}>
+      <Icon name="back" />
+    </Link>
   );
 }

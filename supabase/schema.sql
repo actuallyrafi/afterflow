@@ -64,3 +64,27 @@ alter table matches add column if not exists b_time text not null default '';
 
 alter table profiles enable row level security;
 alter table matches enable row level security;
+
+-- v4: one question, quiet mute/remove/block, shared notes, delete my card.
+-- trying_to now holds the answer to "What's something you're into right now?".
+-- Legacy columns (role, offers, score, …) stay and are written empty.
+alter table profiles add column if not exists reminders boolean not null default false;
+alter table profiles alter column role set default '';
+alter table profiles alter column offers set default '[]'::jsonb;
+alter table profiles alter column top_offer set default '';
+alter table profiles alter column needs set default '[]'::jsonb;
+alter table profiles alter column top_need set default '';
+alter table profiles alter column availability set default '';
+alter table matches add column if not exists state jsonb not null default '{}'::jsonb;
+alter table matches alter column score set default 0;
+alter table matches alter column explanation set default '';
+alter table matches alter column first_action set default '';
+
+create table if not exists blocks (
+  blocker_id text not null references profiles(id) on delete cascade,
+  blocked_id text not null references profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (blocker_id, blocked_id)
+);
+create index if not exists blocks_blocked_idx on blocks (blocked_id);
+alter table blocks enable row level security;

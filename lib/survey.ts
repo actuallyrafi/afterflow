@@ -1,89 +1,44 @@
-export const OFFERS = [
-  "Coding",
-  "Design",
-  "Product",
-  "AI/ML",
-  "Data",
-  "Marketing/Growth",
-  "Community",
-  "Introductions",
-  "Domain expertise",
-  "Other",
-] as const;
+// The card: a name, the best way to reach you, and one question. Nothing is scored.
 
-export const NEEDS = [
-  ...OFFERS,
-  "Teammate",
-  "Feedback",
-  "Mentor",
-  "Collaborator",
-] as const;
+export const CHANNELS = ["whatsapp", "discord", "instagram", "email"] as const;
+export type Channel = (typeof CHANNELS)[number];
 
-export const AVAILABILITIES = [
-  "Right now at the event",
-  "Later tonight",
-  "This week",
-] as const;
+export const CHANNEL_LABEL: Record<Channel, string> = {
+  whatsapp: "WhatsApp",
+  discord: "Discord",
+  instagram: "Instagram",
+  email: "Email",
+};
 
-export const FREE_TEXT_LABEL =
-  "What's one thing you're trying to make happen in the next month, and what's stopping you?";
+export const CHANNEL_PLACEHOLDER: Record<Channel, string> = {
+  whatsapp: "+44 7700 900123",
+  discord: "username",
+  instagram: "@handle",
+  email: "you@example.com",
+};
 
-export const FREE_TEXT_HELP =
-  "Name the thing, who you need, and by when. One or two sentences is plenty.";
-
-export const FREE_TEXT_NUDGE = "Add who you need, or by when";
-
-export const FREE_TEXT_EXAMPLES = [
-  "Shipping a Discord bot for my 400-person community, but I need someone who knows Supabase auth by next week.",
-  "Running my first London meetup in November and need a venue partner and a co-host.",
-  "I can design onboarding flows and want a real AI product to put in my portfolio.",
-] as const;
+export const NAME_LABEL = "What should people call you?";
+export const CONTACT_LABEL = "Best way to reach you";
+export const CONTACT_HELP = "Only shared with people you both say you met. Change it anytime.";
+export const QUESTION = "What's something you're into right now?";
+export const QUESTION_HELP = "A project, a hobby, a place — anything.";
+export const QUESTION_PLACEHOLDER = "Finally trying the bouldering wall in Bermondsey";
 
 export const CONSENT_TEXT =
-  "Your answers are only used to recap and reconnect you with people you add or who add you. Your contact is shown only after you both confirm. All data is deleted after the event.";
+  "Save my card so people I confirm can find me again. It stays until I delete it, and I can remove anyone anytime.";
 
-export const NO_STRONG_MATCH_MESSAGE =
-  "No strong match yet, we'll keep looking";
+export const NAME_MAX = 40;
+export const ANSWER_MIN = 3;
+export const ANSWER_MAX = 200;
 
 export type Submission = {
   name: string;
+  /** Stored as `channel:value`, e.g. `whatsapp:+447700900123`. */
   contact: string;
-  linkedin?: string;
-  role: string;
-  offers: string[];
-  topOffer: string;
-  needs: string[];
-  topNeed: string;
-  availability: string;
-  tryingTo: string;
+  answer: string;
 };
 
-export function normalizeLinkedIn(value: unknown): { ok: true; value: string } | { ok: false; error: string } {
-  if (typeof value !== "string" || value.trim() === "") return { ok: true, value: "" };
-  const text = value.replace(/[\u0000-\u001F\u007F]/g, "").trim();
-  if (!text) return { ok: true, value: "" };
-  if (text.length > 200 || /\s/.test(text)) return { ok: false, error: "Use a linkedin.com URL, or leave it blank." };
-  const withScheme = /^https?:\/\//i.test(text) ? text : `https://${text}`;
-  try {
-    const url = new URL(withScheme);
-    const host = url.hostname.toLowerCase().replace(/^www\./, "");
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return { ok: false, error: "Use a linkedin.com URL, or leave it blank." };
-    }
-    if (host !== "linkedin.com" && !host.endsWith(".linkedin.com")) {
-      return { ok: false, error: "Use a linkedin.com URL, or leave it blank." };
-    }
-    url.hash = "";
-    url.protocol = "https:";
-    return { ok: true, value: url.toString() };
-  } catch {
-    return { ok: false, error: "Use a linkedin.com URL, or leave it blank." };
-  }
-}
-
-export function wordCount(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length;
-}
+export type ParsedContact = { channel: Channel; value: string };
 
 function clean(value: unknown, max: number): string {
   if (typeof value !== "string") return "";
@@ -94,55 +49,87 @@ function clean(value: unknown, max: number): string {
     .slice(0, max);
 }
 
-function uniqueAllowed(value: unknown, allowed: readonly string[]): string[] | null {
-  if (!Array.isArray(value)) return null;
-  const out: string[] = [];
-  for (const item of value) {
-    if (typeof item !== "string" || !allowed.includes(item) || out.includes(item)) {
-      return null;
-    }
-    out.push(item);
-  }
-  return out;
+export function isChannel(value: unknown): value is Channel {
+  return typeof value === "string" && (CHANNELS as readonly string[]).includes(value);
 }
 
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function normalizeContact(
+  channel: unknown,
+  raw: unknown,
+): { ok: true; value: string } | { ok: false; error: string } {
+  if (!isChannel(channel)) return { ok: false, error: "Pick how people can reach you." };
+  const text = clean(raw, 120);
+  if (!text) return { ok: false, error: "Add how people can reach you." };
+  if (channel === "whatsapp") {
+    let digits = text.replace(/[\s().-]/g, "");
+    if (digits.startsWith("00")) digits = `+${digits.slice(2)}`;
+    if (/^07\d{9}$/.test(digits)) digits = `+44${digits.slice(1)}`;
+    if (!digits.startsWith("+")) digits = `+${digits}`;
+    if (!/^\+\d{8,15}$/.test(digits)) {
+      return { ok: false, error: "That number doesn't look right. Include the country code, like +44." };
+    }
+    return { ok: true, value: `whatsapp:${digits}` };
+  }
+  if (channel === "discord") {
+    const name = text.replace(/^@/, "").toLowerCase();
+    if (!/^[a-z0-9_.]{2,32}$/.test(name)) {
+      return { ok: false, error: "Discord usernames are 2–32 letters, numbers, dots or underscores." };
+    }
+    return { ok: true, value: `discord:${name}` };
+  }
+  if (channel === "instagram") {
+    const handle = text.replace(/^@/, "").toLowerCase();
+    if (!/^[a-z0-9_.]{1,30}$/.test(handle)) return { ok: false, error: "That Instagram handle doesn't look right." };
+    return { ok: true, value: `instagram:${handle}` };
+  }
+  const email = text.toLowerCase();
+  if (!EMAIL.test(email)) return { ok: false, error: "That email doesn't look right." };
+  return { ok: true, value: `email:${email}` };
+}
+
+/**
+ * Reads a stored contact. Cards made before v4 hold a bare "email or Discord" string,
+ * so those are read as email when they look like one, otherwise as a Discord name.
+ */
+export function parseContact(stored: unknown): ParsedContact {
+  const text = typeof stored === "string" ? stored.trim() : "";
+  const match = text.match(/^(whatsapp|discord|instagram|email):(.*)$/);
+  if (match && isChannel(match[1])) return { channel: match[1], value: match[2] };
+  if (EMAIL.test(text)) return { channel: "email", value: text };
+  return { channel: "discord", value: text.replace(/^@/, "") };
+}
+
+/** Accepts `{ channel, contact }` from the form, or a stored-style `contact: "channel:value"`. */
 export function validateSubmission(
   body: unknown,
+  options: { requireConsent?: boolean } = {},
 ): { ok: true; value: Submission } | { ok: false; error: string } {
-  if (!body || typeof body !== "object") {
-    return { ok: false, error: "Missing survey." };
-  }
+  if (!body || typeof body !== "object") return { ok: false, error: "Missing card." };
   const raw = body as Record<string, unknown>;
-  if (raw.consent !== true) {
-    return { ok: false, error: "Consent is required." };
+  if ((options.requireConsent ?? true) && raw.consent !== true) {
+    return { ok: false, error: "Tick the box so we can save your card." };
   }
+  const name = clean(raw.name, 200);
+  if (name.length < 1) return { ok: false, error: "Add a name. Just a first name is fine." };
+  if (name.length > NAME_MAX) return { ok: false, error: `Keep your name under ${NAME_MAX} characters.` };
 
-  const name = clean(raw.name, 80);
-  const contact = clean(raw.contact, 120);
-  const linkedin = normalizeLinkedIn(raw.linkedin);
-  const role = clean(raw.role, 140);
-  const tryingTo = clean(raw.tryingTo, 400);
-  const availability = clean(raw.availability, 80);
-  const offers = uniqueAllowed(raw.offers, OFFERS);
-  const needs = uniqueAllowed(raw.needs, NEEDS);
-  const topOffer = clean(raw.topOffer, 80);
-  const topNeed = clean(raw.topNeed, 80);
-
-  if (name.length < 1) return { ok: false, error: "Add your name." };
-  if (contact.length < 2) return { ok: false, error: "Add an email or Discord handle." };
-  if (!linkedin.ok) return { ok: false, error: linkedin.error };
-  if (role.length < 1) return { ok: false, error: "Add a one-line role." };
-  if (!offers || offers.length < 1) return { ok: false, error: "Pick at least one offer." };
-  if (!offers.includes(topOffer)) return { ok: false, error: "Mark a top offer." };
-  if (!needs || needs.length < 1) return { ok: false, error: "Pick at least one thing you're looking for." };
-  if (!needs.includes(topNeed)) return { ok: false, error: "Mark a top need." };
-  if (!AVAILABILITIES.includes(availability as (typeof AVAILABILITIES)[number])) {
-    return { ok: false, error: "Pick when you're free." };
+  let channel = raw.channel;
+  let value = raw.contact;
+  if (!isChannel(channel) && typeof value === "string") {
+    const prefixed = value.match(/^(whatsapp|discord|instagram|email):(.*)$/);
+    if (prefixed) {
+      channel = prefixed[1];
+      value = prefixed[2];
+    }
   }
-  if (tryingTo.length < 1) return { ok: false, error: "Tell us what you're trying to make happen." };
+  const contact = normalizeContact(channel, value);
+  if (!contact.ok) return contact;
 
-  return {
-    ok: true,
-    value: { name, contact, linkedin: linkedin.value, role, offers, topOffer, needs, topNeed, availability, tryingTo },
-  };
+  const answer = clean(raw.answer, 1000);
+  if (answer.length < ANSWER_MIN) return { ok: false, error: "A few words is plenty." };
+  if (answer.length > ANSWER_MAX) return { ok: false, error: `Keep it under ${ANSWER_MAX} characters.` };
+
+  return { ok: true, value: { name, contact: contact.value, answer } };
 }

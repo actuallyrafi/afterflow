@@ -17,12 +17,7 @@ export async function POST(request: Request) {
   }
   const profile = await getStore().createProfile(parsed.value);
   return Response.json(
-    {
-      id: profile.id,
-      token: profile.secretToken,
-      name: profile.name,
-      createdAt: profile.createdAt,
-    },
+    { id: profile.id, token: profile.secretToken, name: profile.name, createdAt: profile.createdAt },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

@@ -1,324 +1,243 @@
 "use client";
 
-import {
-  AVAILABILITIES,
-  CONSENT_TEXT,
-  FREE_TEXT_EXAMPLES,
-  FREE_TEXT_HELP,
-  FREE_TEXT_LABEL,
-  FREE_TEXT_NUDGE,
-  NEEDS,
-  OFFERS,
-  wordCount,
-} from "@/lib/survey";
-import { clearPendingMeet, firstName, readPendingMeet, rememberMeet } from "@/lib/pending-meet";
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { CircleLink, TopBar } from "@/components/ui/chrome";
+import { Icon } from "@/components/ui/icons";
+import { Mark } from "@/components/ui/mark";
+import { api, rememberToken, savedToken } from "@/lib/api";
+import type { HomeResult, PersonCard } from "@/lib/connections";
+import { clearPendingMeet, firstName, readPendingMeet, rememberMeet } from "@/lib/pending-meet";
+import {
+  ANSWER_MAX,
+  CHANNEL_LABEL,
+  CHANNEL_PLACEHOLDER,
+  CHANNELS,
+  CONSENT_TEXT,
+  CONTACT_HELP,
+  CONTACT_LABEL,
+  NAME_LABEL,
+  NAME_MAX,
+  parseContact,
+  QUESTION,
+  QUESTION_HELP,
+  QUESTION_PLACEHOLDER,
+  type Channel,
+} from "@/lib/survey";
 
-type MeetPerson = { publicId: string; name: string; role: string; isDemo: boolean };
+const INPUT_MODE: Record<Channel, "tel" | "text" | "email"> = { whatsapp: "tel", discord: "text", instagram: "text", email: "email" };
 
-function MultiSelect({
-  legend,
-  options,
-  selected,
-  top,
-  onChange,
-}: {
-  legend: string;
-  options: readonly string[];
-  selected: string[];
-  top: string;
-  onChange: (selected: string[], top: string) => void;
-}) {
-  function toggle(value: string) {
-    if (selected.includes(value)) {
-      const next = selected.filter((item) => item !== value);
-      onChange(next, top === value ? (next[0] ?? "") : top);
-      return;
-    }
-    onChange([...selected, value], top || value);
-  }
-
-  return (
-    <fieldset>
-      <legend className="text-base font-semibold">{legend}</legend>
-      <p className="mt-1 text-sm text-muted">Tap to select. Tap Top to mark your strongest.</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {options.map((option) => {
-          const on = selected.includes(option);
-          const isTop = top === option;
-          return (
-            <div
-              key={option}
-              className={`flex min-h-12 items-stretch border ${on ? "border-accent" : "border-line"} ${isTop ? "bg-accent text-accent-ink" : ""}`}
-            >
-              <button
-                type="button"
-                aria-pressed={on}
-                onClick={() => toggle(option)}
-                className="px-3 py-2 text-left text-base"
-              >
-                {option}
-              </button>
-              {on ? (
-                <button
-                  type="button"
-                  aria-pressed={isTop}
-                  onClick={() => onChange(selected, option)}
-                  className="border-l border-current px-2 text-xs font-semibold uppercase"
-                >
-                  {isTop ? "Top" : "Set top"}
-                </button>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-    </fieldset>
-  );
-}
-
-export default function SurveyPage() {
+export default function CardForm() {
   const [name, setName] = useState("");
+  const [channel, setChannel] = useState<Channel>("whatsapp");
   const [contact, setContact] = useState("");
-  const [linkedin, setLinkedin] = useState("");
-  const [role, setRole] = useState("");
-  const [offers, setOffers] = useState<string[]>([]);
-  const [topOffer, setTopOffer] = useState("");
-  const [needs, setNeeds] = useState<string[]>([]);
-  const [topNeed, setTopNeed] = useState("");
-  const [availability, setAvailability] = useState("");
-  const [tryingTo, setTryingTo] = useState("");
+  const [answer, setAnswer] = useState("");
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [meetId, setMeetId] = useState<string | null>(null);
-  const [meetPerson, setMeetPerson] = useState<MeetPerson | null>(null);
+  const [meetPerson, setMeetPerson] = useState<PersonCard | null>(null);
+  const [editToken, setEditToken] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const segRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const pending = readPendingMeet(new URLSearchParams(window.location.search).get("meet"));
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("edit") ? savedToken() : null;
+    if (token) {
+      setEditToken(token);
+      void api<HomeResult>(`/api/profiles/${token}`).then((result) => {
+        if (result.ok && result.data.profile) {
+          const parsed = parseContact(result.data.profile.contact);
+          setName(result.data.profile.name);
+          setChannel(parsed.channel);
+          setContact(parsed.channel === "instagram" ? `@${parsed.value}` : parsed.value);
+          setAnswer(result.data.profile.answer);
+        } else setEditToken(null);
+        setReady(true);
+      });
+      return;
+    }
+    setReady(true);
+    const pending = readPendingMeet(params.get("meet"));
     if (!pending) return;
     setMeetId(pending);
     rememberMeet(pending);
-    void fetch(`/api/people/${encodeURIComponent(pending)}`, { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) return;
-        const payload = (await response.json()) as { person?: MeetPerson };
-        if (payload.person) setMeetPerson(payload.person);
-      })
-      .catch(() => undefined);
+    void api<{ person: PersonCard }>(`/api/people/${encodeURIComponent(pending)}`).then((result) => {
+      if (result.ok && result.data.person) setMeetPerson(result.data.person);
+    });
   }, []);
 
   const meetFirst = meetPerson ? firstName(meetPerson.name) : "";
+  const editing = Boolean(editToken);
 
-  const words = wordCount(tryingTo);
-  const showNudge = tryingTo.trim().length > 0 && words < 8;
+  function moveChannel(delta: number) {
+    const index = (CHANNELS.indexOf(channel) + delta + CHANNELS.length) % CHANNELS.length;
+    setChannel(CHANNELS[index]);
+    segRef.current?.querySelectorAll<HTMLButtonElement>("button")[index]?.focus();
+  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
     setSaving(true);
-    try {
-      const response = await fetch("/api/profiles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          contact,
-          linkedin,
-          role,
-          offers,
-          topOffer,
-          needs,
-          topNeed,
-          availability,
-          tryingTo,
-          consent,
-        }),
-      });
-      const payload = (await response.json()) as { token?: string; error?: string };
-      if (!response.ok || !payload.token) {
-        setError(payload.error || "Could not save. Try again.");
-        setSaving(false);
-        return;
-      }
-      localStorage.setItem("afterflow.token", payload.token);
-      const pending = meetId || readPendingMeet(new URLSearchParams(window.location.search).get("meet"));
-      clearPendingMeet();
-      window.location.assign(pending ? `/meet/${encodeURIComponent(pending)}?saved=1` : `/m/${payload.token}`);
-    } catch {
-      setError("Could not reach Afterflow. Check the connection and try again.");
+    const body = { name, channel, contact, answer, consent };
+    const result = editing
+      ? await api<{ profile?: unknown }>(`/api/profiles/${editToken}`, { method: "PATCH", body })
+      : await api<{ token?: string }>("/api/profiles", { method: "POST", body });
+    if (!result.ok) {
+      setError(result.data.error || "Couldn't save. Try again.");
       setSaving(false);
+      return;
     }
+    if (editing) {
+      window.location.assign(`/m/${editToken}/card`);
+      return;
+    }
+    const token = (result.data as { token?: string }).token;
+    if (!token) {
+      setError("Couldn't save. Try again.");
+      setSaving(false);
+      return;
+    }
+    rememberToken(token);
+    const pending = meetId || readPendingMeet(new URLSearchParams(window.location.search).get("meet"));
+    clearPendingMeet();
+    window.location.assign(pending ? `/meet/${encodeURIComponent(pending)}?saved=1` : `/m/${token}`);
   }
 
+  const back = editing ? `/m/${editToken}/card` : meetId ? `/meet/${encodeURIComponent(meetId)}` : "/";
+
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-lg px-4 pb-6">
-      {meetPerson ? (
-        <div className="sticky top-0 z-10 -mx-4 border-b border-line bg-bg/95 px-4 py-3 backdrop-blur">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <span
-                aria-hidden="true"
-                className="flex size-10 shrink-0 items-center justify-center bg-accent text-base font-semibold text-accent-ink"
-              >
-                {meetFirst.slice(0, 1).toUpperCase()}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate font-semibold">Connecting with {meetPerson.name}</p>
-                <p className="truncate text-sm text-muted">
-                  {meetPerson.role}
-                  {meetPerson.isDemo ? <span className="ml-2 text-accent">Demo</span> : null}
-                </p>
-              </div>
-            </div>
-            <p className="shrink-0 text-sm text-muted">Step 1 of 2</p>
-          </div>
+    <main className="shell page-top pb-16">
+      <TopBar left={<CircleLink href={back} icon="back" label="Back" />} />
+      <h1 className="t-title">{editing ? "Edit your card" : "Make your card"}</h1>
+      <p className="mt-1 mb-4 text-[15px] leading-[21px] text-muted">
+        {editing ? "Change anything. People you've connected with see the update." : "Three quick things. Only people you both confirm see it."}
+      </p>
+
+      {meetPerson && !editing ? (
+        <div className="mb-3 flex items-center gap-2.5 rounded-[22px] bg-panel py-2.5 pr-4 pl-2.5">
+          <Mark name={meetPerson.name} seed={meetPerson.publicId} size={40} />
+          <p className="min-w-0 flex-1 text-[14px] leading-5">
+            <span className="block truncate font-semibold">Then say yes to {meetPerson.name}</span>
+            <span className="block text-muted">Step 1 of 2{meetPerson.isDemo ? " · Demo card" : ""}</span>
+          </p>
         </div>
       ) : null}
-      <div className="pt-6">
-        <Link href="/" className="text-sm uppercase tracking-[0.16em] text-muted">
-          Afterflow
-        </Link>
-      </div>
-      <h1 className="mt-3 font-display text-4xl leading-none">
-        {meetPerson ? `Make your card to connect with ${meetFirst}` : "Your Afterflow card"}
-      </h1>
-      <p className="mt-3 text-muted">
-        {meetPerson
-          ? `About 30 seconds. Then one tap to confirm you met ${meetFirst}. Your contact stays hidden until you both confirm.`
-          : "A short card so someone you already met tonight can find you again. About 30 seconds."}
-      </p>
-      <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-7">
-        <label className="block">
-          <span className="font-semibold">Name</span>
+
+      <form onSubmit={onSubmit} noValidate aria-busy={!ready}>
+        <label className="field" htmlFor="name">
+          <span className="field-label">{NAME_LABEL}</span>
           <input
+            id="name"
             required
             value={name}
+            maxLength={NAME_MAX}
             onChange={(event) => setName(event.target.value)}
-            autoComplete="name"
-            className="mt-2 w-full border border-line bg-panel px-3 py-3 text-base"
+            autoComplete="given-name"
+            placeholder="Ada"
           />
         </label>
-        <label className="block">
-          <span className="font-semibold">Email or Discord</span>
-          <input
-            required
-            value={contact}
-            onChange={(event) => setContact(event.target.value)}
-            placeholder="you@email.com or discord handle"
-            autoComplete="email"
-            className="mt-2 w-full border border-line bg-panel px-3 py-3 text-base"
-          />
-        </label>
-        <label className="block">
-          <span className="font-semibold">LinkedIn URL</span>
-          <span className="ml-2 text-sm text-muted">Optional. Shown only after you both confirm.</span>
-          <input
-            value={linkedin}
-            onChange={(event) => setLinkedin(event.target.value)}
-            placeholder="linkedin.com/in/your-name"
-            inputMode="url"
-            className="mt-2 w-full border border-line bg-panel px-3 py-3 text-base"
-          />
-        </label>
-        <label className="block">
-          <span className="font-semibold">One-line role</span>
-          <input
-            required
-            value={role}
-            onChange={(event) => setRole(event.target.value)}
-            placeholder="Backend engineer, designer, community lead"
-            className="mt-2 w-full border border-line bg-panel px-3 py-3 text-base"
-          />
-        </label>
-        <MultiSelect
-          legend="What you offer"
-          options={OFFERS}
-          selected={offers}
-          top={topOffer}
-          onChange={(next, top) => {
-            setOffers(next);
-            setTopOffer(top);
-          }}
-        />
-        <MultiSelect
-          legend="What you are looking for"
-          options={NEEDS}
-          selected={needs}
-          top={topNeed}
-          onChange={(next, top) => {
-            setNeeds(next);
-            setTopNeed(top);
-          }}
-        />
-        <fieldset>
-          <legend className="font-semibold">When you are free</legend>
-          <div className="mt-3 grid gap-2">
-            {AVAILABILITIES.map((option) => (
+
+        <fieldset className="field mt-2.5">
+          <legend className="sr-only">{CONTACT_LABEL}</legend>
+          <span className="field-label" aria-hidden="true">
+            {CONTACT_LABEL}
+          </span>
+          <div ref={segRef} className="seg" role="radiogroup" aria-label={CONTACT_LABEL}>
+            {CHANNELS.map((option) => (
               <button
                 key={option}
                 type="button"
-                aria-pressed={availability === option}
-                onClick={() => setAvailability(option)}
-                className={`min-h-12 border px-3 text-left text-base ${availability === option ? "border-accent bg-accent text-accent-ink" : "border-line"}`}
+                role="radio"
+                aria-checked={channel === option}
+                tabIndex={channel === option ? 0 : -1}
+                onClick={() => setChannel(option)}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+                    event.preventDefault();
+                    moveChannel(1);
+                  }
+                  if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+                    event.preventDefault();
+                    moveChannel(-1);
+                  }
+                }}
               >
-                {option}
+                {CHANNEL_LABEL[option]}
               </button>
             ))}
           </div>
-        </fieldset>
-        <div>
-          <label htmlFor="trying" className="font-semibold">
-            {FREE_TEXT_LABEL}
+          <label htmlFor="contact" className="sr-only">
+            Your {CHANNEL_LABEL[channel]}
           </label>
-          <p className="mt-1 text-sm text-muted">{FREE_TEXT_HELP}</p>
-          <div className="mt-3 flex flex-col gap-2">
-            {FREE_TEXT_EXAMPLES.map((example) => (
-              <button
-                key={example}
-                type="button"
-                onClick={() => setTryingTo(example)}
-                className="border border-line px-3 py-2 text-left text-sm leading-snug text-muted"
-              >
-                {example}
-              </button>
-            ))}
-          </div>
-          <textarea
-            id="trying"
-            required
-            value={tryingTo}
-            onChange={(event) => setTryingTo(event.target.value)}
-            rows={4}
-            className="mt-3 w-full border border-line bg-panel px-3 py-3 text-base"
-          />
-          {showNudge ? <p className="mt-2 text-sm text-accent">{FREE_TEXT_NUDGE}</p> : null}
-        </div>
-        <label className="flex items-start gap-3 text-sm leading-relaxed">
           <input
-            type="checkbox"
-            checked={consent}
-            onChange={(event) => setConsent(event.target.checked)}
+            id="contact"
             required
-            className="mt-1 size-6 accent-[#e2ff4d]"
+            value={contact}
+            onChange={(event) => setContact(event.target.value)}
+            inputMode={INPUT_MODE[channel]}
+            type={channel === "email" ? "email" : channel === "whatsapp" ? "tel" : "text"}
+            autoComplete={channel === "email" ? "email" : channel === "whatsapp" ? "tel" : "off"}
+            autoCapitalize="off"
+            spellCheck={false}
+            placeholder={CHANNEL_PLACEHOLDER[channel]}
+            aria-describedby="contact-help"
+            className="!mt-2.5"
           />
-          <span>{CONSENT_TEXT}</span>
+          <p id="contact-help" className="mt-1.5 text-[12px] leading-4 text-muted">
+            {CONTACT_HELP}
+          </p>
+        </fieldset>
+
+        <label htmlFor="answer" className="round mx-1 mt-[18px] mb-0.5 block text-[18px] leading-6 font-extrabold">
+          {QUESTION}
         </label>
+        <p id="answer-help" className="mx-1 mb-2 text-[13px] text-muted">
+          {QUESTION_HELP}
+        </p>
+        <textarea
+          id="answer"
+          required
+          value={answer}
+          maxLength={ANSWER_MAX}
+          onChange={(event) => setAnswer(event.target.value)}
+          rows={3}
+          placeholder={QUESTION_PLACEHOLDER}
+          aria-describedby="answer-help"
+          className="answer-bubble"
+        />
+        {answer.length > 160 ? (
+          <p className="mx-1 mt-1 text-right text-[12px] text-muted" aria-live="polite">
+            {ANSWER_MAX - answer.length} left
+          </p>
+        ) : null}
+
+        {!editing ? (
+          <label className="mx-1 mt-4 flex cursor-pointer items-start gap-3">
+            <input type="checkbox" className="sr-only" checked={consent} onChange={(event) => setConsent(event.target.checked)} required />
+            <span className="check" aria-hidden="true">
+              {consent ? <Icon name="check" size={16} /> : null}
+            </span>
+            <span className="text-[14px] leading-5">{CONSENT_TEXT}</span>
+          </label>
+        ) : null}
+
         {error ? (
-          <p role="alert" className="text-hot">
+          <p role="alert" className="mx-1 mt-3 text-[14px] text-hot">
             {error}
           </p>
         ) : null}
-        <button
-          type="submit"
-          disabled={saving}
-          className="min-h-14 bg-accent text-lg font-semibold text-accent-ink disabled:opacity-60"
-        >
-          {saving ? "Saving…" : meetPerson ? `Save and continue to ${meetFirst}` : "Save my card"}
+        <button type="submit" disabled={saving || !ready} aria-busy={saving} className="btn btn-lg btn-ink mt-[18px] w-full">
+          {saving ? "Saving…" : editing ? "Save changes" : meetPerson ? `Save and say yes to ${meetFirst}` : "Save my card"}
         </button>
       </form>
-      <p className="py-8 text-sm text-muted">Data deleted after the event</p>
+      {!editing ? (
+        <p className="mt-5 text-center text-[13px] text-muted">
+          Already have a card? Open your link, or <Link href="/" className="underline">start here</Link>.
+        </p>
+      ) : null}
     </main>
   );
 }

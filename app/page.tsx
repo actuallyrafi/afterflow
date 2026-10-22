@@ -1,61 +1,56 @@
 "use client";
 
-import { EventQr } from "@/components/event-qr";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { EventQr } from "@/components/event-qr";
+import { savedToken } from "@/lib/api";
+import { EVENT_LINE } from "@/lib/event";
 
 export default function HomePage() {
   const [resume, setResume] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("afterflow.token");
+    const token = savedToken();
     if (token) setResume(`/m/${token}`);
   }, []);
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 py-6">
-      <main className="grid flex-1 items-center gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+    <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 pt-[calc(env(safe-area-inset-top)+40px)] pb-8">
+      <div className="grid flex-1 items-center gap-10 md:grid-cols-[1.1fr_0.9fr]">
         <div>
-          <p className="text-sm uppercase tracking-[0.16em] text-muted">
-            Grok Bot Community Engineering London Hackathon · 22 Oct 2026
+          <span className="pill">{EVENT_LINE}</span>
+          <h1 className="round mt-4 text-[clamp(3rem,12vw,5.5rem)] leading-[0.95] font-black tracking-[-0.03em]">Afterflow</h1>
+          <p className="mt-4 max-w-md text-[clamp(1.15rem,2.4vw,1.5rem)] leading-snug">Keep the people you meet in your life.</p>
+          <p className="mt-3 max-w-md text-[15px] leading-[22px] text-muted">
+            Make a quick card, show it to someone you just met, and both say yes. Later, say hi on WhatsApp, Discord, Instagram or email.
           </p>
-          <h1 className="mt-3 font-display text-[clamp(3.4rem,11vw,7rem)] leading-[0.86] tracking-tight">
-            Afterflow
-          </h1>
-          <p className="mt-5 max-w-xl text-[clamp(1.25rem,2.4vw,2rem)] leading-snug">
-            You already met tonight. Afterflow gets the two of you talking again after the event.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link
-              href="/survey"
-              className="inline-flex min-h-14 items-center justify-center bg-accent px-6 text-lg font-semibold text-accent-ink"
-            >
-              Start
+          <div className="mt-7 flex flex-wrap items-center gap-2.5">
+            <Link href={resume ?? "/survey"} className="btn btn-lg btn-ink px-7">
+              {resume ? "Your people" : "Make your card"}
             </Link>
             {resume ? (
-              <Link href={resume} className="inline-flex min-h-14 items-center px-2 text-base underline">
-                My connections
+              <Link href={`${resume}/card`} className="btn btn-lg btn-fill px-6">
+                My card
               </Link>
             ) : null}
           </div>
-          <p className="mt-6 max-w-md text-sm leading-relaxed text-muted">
-            Make a card, then add someone you talked to. Your contact and LinkedIn stay hidden until you both confirm.
-          </p>
         </div>
-        <div>
-          <p className="mb-3 text-center text-sm uppercase tracking-[0.16em] text-muted">Scan to open</p>
-          <EventQr />
+        <div className="panel mx-auto w-full max-w-[22rem] p-5 text-center">
+          <p className="round text-[16px] font-extrabold">Scan to open Afterflow</p>
+          <div className="mt-3">
+            <EventQr />
+          </div>
         </div>
-      </main>
-      <footer className="flex flex-wrap gap-x-4 gap-y-2 pt-8 text-sm text-muted">
-        <span>Data deleted after the event</span>
-        <Link href="/how-we-built" className="underline">
+      </div>
+      <footer className="flex flex-wrap gap-x-5 gap-y-2 pt-10 text-[13px] text-muted">
+        <span>Your card stays until you delete it.</span>
+        <Link href="/how-we-built" className="underline underline-offset-2">
           How we built this
         </Link>
-        <Link href="/organiser" className="underline">
+        <Link href="/organiser" className="underline underline-offset-2">
           Organiser
         </Link>
       </footer>
-    </div>
+    </main>
   );
 }

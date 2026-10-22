@@ -12,9 +12,12 @@ export function organiserAuthorised(header: string | null): boolean {
   return timingSafeEqual(given, want);
 }
 
+/** Aggregate totals for the organiser only. Never shown to attendees, never per person. */
 export async function organiserStats(store: Store) {
   const profiles = await store.listProfiles();
-  const connections = (await store.listMatches()).filter((match) => match.met);
+  const connections = (await store.listMatches()).filter(
+    (match) => match.met && !match.shadow && !match.removedAt && !match.blockedBy,
+  );
   let mutualConfirms = 0;
   let followedUp = 0;
   for (const match of connections) {

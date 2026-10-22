@@ -8,7 +8,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ publicId: 
   const { publicId } = await ctx.params;
   const person = await publicCard(getStore(), publicId);
   if (!person) {
-    return Response.json({ error: "No one with that link." }, { status: 404 });
+    return Response.json({ error: "This card isn't available." }, { status: 404 });
   }
   return Response.json({ person }, { headers: { "Cache-Control": "no-store" } });
 }

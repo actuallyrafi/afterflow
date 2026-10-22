@@ -81,7 +81,7 @@ export default function OrganiserPage() {
         Afterflow
       </Link>
       <h1 className="mt-3 font-display text-5xl leading-none">Organiser</h1>
-      <p className="mt-4 text-lg">Data deleted after the event</p>
+      <p className="mt-4 text-lg">Data stays until people delete their card</p>
       {!ready ? (
         <form
           className="mt-8 flex flex-col gap-3"
@@ -109,9 +109,9 @@ export default function OrganiserPage() {
         </form>
       ) : (
         <div className="mt-8">
-          {deleted ? <p className="mb-4 text-2xl font-semibold">Data deleted after the event</p> : null}
+          {deleted ? <p className="mb-4 text-2xl font-semibold">All data deleted</p> : null}
           <Funnel stats={stats} />
-          <p className="mt-3 text-sm text-muted">The funnel refreshes every few seconds. Followed up: {stats?.followedUp ?? "…"}</p>
+          <p className="mt-3 text-sm text-muted">The funnel refreshes every few seconds. Talked again (private marks, total): {stats?.followedUp ?? "…"}</p>
           {error ? <p className="mt-3 text-hot">{error}</p> : null}
           {!confirming ? (
             <button type="button" onClick={() => setConfirming(true)} className="mt-8 min-h-12 bg-hot px-4 font-semibold text-white">
@@ -136,7 +136,7 @@ function Funnel({ stats }: { stats: Stats | null }) {
     ["Sign-ups", stats?.signups],
     ["Connections requested", stats?.connectionsMade],
     ["Mutual confirms", stats?.mutualConfirms],
-    ["Followed up", stats?.followedUp],
+    ["Talked again", stats?.followedUp],
   ] as const;
   const top = Math.max(stats?.signups ?? 0, 1);
   return (
