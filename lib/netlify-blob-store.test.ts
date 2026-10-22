@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createNetlifyBlobStore } from "./netlify-blob-store";
-import type { Submission } from "./store";
+import type { Submission } from "./survey";
 
 type Entry = { value: string; etag: string };
 
@@ -61,7 +61,7 @@ const card = (name: string): Submission => ({
   topOffer: "Introductions",
   needs: ["Feedback"],
   topNeed: "Feedback",
-  availability: ["Online later"],
+  availability: "This week",
   tryingTo: `${name} is looking for a follow-up.`,
 });
 

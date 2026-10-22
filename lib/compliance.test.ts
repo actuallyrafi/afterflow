@@ -170,7 +170,18 @@ test("the build log has timestamps and only real commits", () => {
   assert.equal(/https?:\/\//.test(log), false);
   const shas = log.match(/\b[0-9a-f]{40}\b/g) ?? [];
   assert.ok(shas.length >= 5);
+  // The public repo starts from one squashed commit (f055fc0) of the hackathon repo, so the
+  // hackathon-era SHAs already cited in that commit's log are kept as history. Any SHA added
+  // since then must be a real commit in this repo.
+  let squashedLog = "";
+  try {
+    squashedLog = execSync("git show f055fc0:BUILD_LOG.md", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  } catch {
+    squashedLog = "";
+  }
+  const grandfathered = new Set(squashedLog.match(/\b[0-9a-f]{40}\b/g) ?? []);
   for (const sha of new Set(shas)) {
+    if (grandfathered.has(sha)) continue;
     const kind = execSync(`git cat-file -t ${sha}`, { encoding: "utf8" }).trim();
     assert.equal(kind, "commit", sha);
   }

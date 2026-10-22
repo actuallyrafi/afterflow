@@ -545,13 +545,19 @@ function createJsonStore(filename: string): Store {
   return store;
 }
 
-export function createFileStore(filename = process.env.SQLITE_PATH || path.join(process.cwd(), "data", "afterflow.sqlite")): Store {
+export function createFileStore(filename?: string): Store {
+  const explicit = Boolean(filename);
+  if (!filename) filename = process.env.SQLITE_PATH || path.join(process.cwd(), "data", "afterflow.sqlite");
   try {
     const store = createSqliteStore(filename);
     console.log(`[afterflow] sqlite storage at ${filename}`);
     return store;
   } catch (error) {
-    const jsonPath = process.env.JSON_PATH || path.join(process.cwd(), "data", "afterflow.json");
+    // A caller that names its own file (tests, scripts) gets a JSON file beside it,
+    // never the shared default, so separate stores never see each other's rows.
+    const jsonPath = explicit
+      ? filename.replace(/\.[^./\\]+$/, "") + ".json"
+      : process.env.JSON_PATH || path.join(process.cwd(), "data", "afterflow.json");
     console.warn("[afterflow] SQLite unavailable, using JSON file", error);
     console.log(`[afterflow] json storage at ${jsonPath}`);
     return createJsonStore(jsonPath);

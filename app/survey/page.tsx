@@ -11,8 +11,11 @@ import {
   OFFERS,
   wordCount,
 } from "@/lib/survey";
+import { clearPendingMeet, firstName, readPendingMeet, rememberMeet } from "@/lib/pending-meet";
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+
+type MeetPerson = { publicId: string; name: string; role: string; isDemo: boolean };
 
 function MultiSelect({
   legend,
@@ -89,6 +92,24 @@ export default function SurveyPage() {
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [meetId, setMeetId] = useState<string | null>(null);
+  const [meetPerson, setMeetPerson] = useState<MeetPerson | null>(null);
+
+  useEffect(() => {
+    const pending = readPendingMeet(new URLSearchParams(window.location.search).get("meet"));
+    if (!pending) return;
+    setMeetId(pending);
+    rememberMeet(pending);
+    void fetch(`/api/people/${encodeURIComponent(pending)}`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const payload = (await response.json()) as { person?: MeetPerson };
+        if (payload.person) setMeetPerson(payload.person);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const meetFirst = meetPerson ? firstName(meetPerson.name) : "";
 
   const words = wordCount(tryingTo);
   const showNudge = tryingTo.trim().length > 0 && words < 8;
@@ -122,13 +143,9 @@ export default function SurveyPage() {
         return;
       }
       localStorage.setItem("afterflow.token", payload.token);
-      const pending =
-        new URLSearchParams(window.location.search).get("meet") ||
-        sessionStorage.getItem("afterflow.meet") ||
-        localStorage.getItem("afterflow.meet");
-      sessionStorage.removeItem("afterflow.meet");
-      localStorage.removeItem("afterflow.meet");
-      window.location.assign(pending ? `/meet/${pending}` : `/m/${payload.token}`);
+      const pending = meetId || readPendingMeet(new URLSearchParams(window.location.search).get("meet"));
+      clearPendingMeet();
+      window.location.assign(pending ? `/meet/${encodeURIComponent(pending)}?saved=1` : `/m/${payload.token}`);
     } catch {
       setError("Could not reach Afterflow. Check the connection and try again.");
       setSaving(false);
@@ -136,13 +153,41 @@ export default function SurveyPage() {
   }
 
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-lg px-4 py-6">
-      <Link href="/" className="text-sm uppercase tracking-[0.16em] text-muted">
-        Afterflow
-      </Link>
-      <h1 className="mt-3 font-display text-4xl leading-none">Your Afterflow card</h1>
+    <main className="mx-auto min-h-dvh w-full max-w-lg px-4 pb-6">
+      {meetPerson ? (
+        <div className="sticky top-0 z-10 -mx-4 border-b border-line bg-bg/95 px-4 py-3 backdrop-blur">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span
+                aria-hidden="true"
+                className="flex size-10 shrink-0 items-center justify-center bg-accent text-base font-semibold text-accent-ink"
+              >
+                {meetFirst.slice(0, 1).toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate font-semibold">Connecting with {meetPerson.name}</p>
+                <p className="truncate text-sm text-muted">
+                  {meetPerson.role}
+                  {meetPerson.isDemo ? <span className="ml-2 text-accent">Demo</span> : null}
+                </p>
+              </div>
+            </div>
+            <p className="shrink-0 text-sm text-muted">Step 1 of 2</p>
+          </div>
+        </div>
+      ) : null}
+      <div className="pt-6">
+        <Link href="/" className="text-sm uppercase tracking-[0.16em] text-muted">
+          Afterflow
+        </Link>
+      </div>
+      <h1 className="mt-3 font-display text-4xl leading-none">
+        {meetPerson ? `Make your card to connect with ${meetFirst}` : "Your Afterflow card"}
+      </h1>
       <p className="mt-3 text-muted">
-        A short card so someone you already met tonight can find you again. About 30 seconds.
+        {meetPerson
+          ? `About 30 seconds. Then one tap to confirm you met ${meetFirst}. Your contact stays hidden until you both confirm.`
+          : "A short card so someone you already met tonight can find you again. About 30 seconds."}
       </p>
       <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-7">
         <label className="block">
@@ -270,7 +315,7 @@ export default function SurveyPage() {
           disabled={saving}
           className="min-h-14 bg-accent text-lg font-semibold text-accent-ink disabled:opacity-60"
         >
-          {saving ? "Saving…" : "Save my card"}
+          {saving ? "Saving…" : meetPerson ? `Save and continue to ${meetFirst}` : "Save my card"}
         </button>
       </form>
       <p className="py-8 text-sm text-muted">Data deleted after the event</p>

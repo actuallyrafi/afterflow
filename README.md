@@ -1,109 +1,129 @@
-# Afterflow
+<h1 align="center">Afterflow</h1>
 
-Post-event follow-through for the Grok Bot Community Engineering London Hackathon (Thu 22 Oct 2026, Expedite London HQ).
+<p align="center">
+  <a href="https://afterflow-f1.netlify.app"><strong>Open Afterflow → afterflow-f1.netlify.app</strong></a>
+</p>
 
-Afterflow is for people who already met or worked together at the hackathon, so they can pick the conversation up after the event. Each person makes a short card (optional LinkedIn stays hidden until both confirm). They add someone they met by scanning that person's QR code, opening their link, or searching the room by name, with an optional note about what they talked about. Both confirm, or either can quietly decline. Only then are contact and LinkedIn revealed. The connection page recaps both people's words and the note, gives a one or two sentence reason tied to those quotes, and offers three optional ways to keep going: chat online (and share a link), one community next step from `event-context.json`, and a time suggestion. A follow-up yes or not yet is stored with a timestamp and can be changed. `/demo` opens a seeded, already confirmed demo pair.
+<p align="center">
+  You already met at the hackathon. Afterflow gets the two of you talking again.
+</p>
 
-## Run locally
+<p align="center">
+  <a href="https://afterflow-f1.netlify.app">Live app</a> ·
+  <a href="https://afterflow-f1.netlify.app/demo">Demo connection</a> ·
+  <a href="https://afterflow-f1.netlify.app/how-we-built">How we built it</a> ·
+  <a href="#run-it-yourself">Run it yourself</a> ·
+  <a href="LICENSE">MIT licence</a>
+</p>
 
-No accounts are required. Sign-ups go to a SQLite file, or a JSON file if SQLite cannot open.
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-15-black" alt="Next.js 15">
+  <img src="https://img.shields.io/badge/TypeScript-5-3178c6" alt="TypeScript 5">
+  <img src="https://img.shields.io/badge/hosted%20on-Netlify-00ad9f" alt="Hosted on Netlify">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-blue" alt="MIT licence"></a>
+</p>
+
+<p align="center">
+  <img src="docs/home.png" width="230" alt="Afterflow home page with the event QR code in its frame">
+  <img src="docs/meet.png" width="230" alt="Did you meet Maya? One tap left">
+  <img src="docs/connection.png" width="230" alt="A demo connection page quoting both people">
+</p>
+
+Afterflow was built in one evening at the Grok Bot Community Engineering London Hackathon (22 Oct 2026). It is for people who **already met**. It does not match you with strangers.
+
+## How it works
+
+1. **Make a card.** Name, a way to reach you, and one honest answer: *what's one thing you're trying to make happen in the next month, and what's stopping you?*
+2. **Share your code.** Someone you talked to scans your QR code or opens your link, adds an optional note, and taps **Yes, we met**.
+3. **Both confirm.** Contact details stay hidden on the server until you both say yes. Saying no is quiet.
+4. **Pick it back up.** The connection page quotes what you both wrote, word for word, says plainly why it could be worth continuing, and offers optional next steps: a ready-to-send opener, a link to share, one community step from the event, or a time suggestion.
+5. **Did you follow up?** One tap, so organisers can see whether the night produced real connections.
+
+## Private by default
+
+- Your contact and LinkedIn are revealed only after both people confirm.
+- Recaps only quote what people actually typed. Nothing is made up.
+- Demo profiles are always labelled **Demo**.
+- Data is deleted after the event, and the organiser's "delete all" really deletes.
+
+## Run it yourself
+
+You need Node 20 or newer. No accounts or keys are needed for a local demo.
 
 ```bash
+git clone https://github.com/actuallyrafi/afterflow.git
+cd afterflow
 npm install
-npm run build
-npm start
-```
-
-The server binds `0.0.0.0`. The port comes from `PORT` and defaults to `4721`.
-
-Open http://127.0.0.1:4721
-
-For editing:
-
-```bash
 npm run dev
 ```
+
+Open http://127.0.0.1:4721 (set `PORT` to change it).
+
+<details>
+<summary><strong>Developer notes</strong></summary>
+
+### Commands
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server on `0.0.0.0:${PORT:-4721}` |
+| `npm run build` and `npm start` | Production build and server |
+| `npm test` | Unit and flow tests (Node's built-in test runner) |
+| `npm run seed` | Replaces the labelled demo profiles, keeps real sign-ups |
+| `npm run seed:backup` | Makes sure the confirmed demo pair behind `/demo` exists |
 
 ### Storage
 
 | Mode | When | Where |
 | --- | --- | --- |
-| SQLite | Default on Node 22+ | `data/afterflow.sqlite` (override with `SQLITE_PATH`) |
-| JSON | SQLite cannot open | `data/afterflow.json` (override with `JSON_PATH`) |
-| Supabase | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are both set, and `STORAGE` is unset | Postgres, see below |
+| SQLite | Default on Node 22+ | `data/afterflow.sqlite` (`SQLITE_PATH`) |
+| JSON | SQLite is unavailable (Node 20) | `data/afterflow.json` (`JSON_PATH`) |
+| Supabase | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set, `STORAGE` unset | Postgres, schema in `supabase/schema.sql` |
 | Netlify Blobs | On Netlify, or `STORAGE=netlify-blobs` | One blob per profile and connection |
 
-Each person gets a secret token in the page URL and in `localStorage`. There is no login.
+Each person gets a secret token in their page URL and in `localStorage`. There is no login.
 
-### Tests and demo profiles
+### Environment variables
 
-```bash
-npm test
-npm run seed
-```
-
-`npm test` checks scoring, the no-match cutoff, quoted explanations, the community next step, and a two-person "yes we met" flow against SQLite.
-
-`npm run seed` replaces demo profiles (labelled **Demo** in the UI) and leaves real sign-ups in place. A connection with a demo profile can simulate that demo profile confirming. A real attendee cannot.
-
-## Environment
-
-Copy `.env.example`. All of these are optional for a local demo.
+All optional locally. Never commit real values.
 
 | Variable | Purpose |
 | --- | --- |
-| `PORT` | Listen port. Default `4721`. |
-| `ORGANISER_PASSCODE` | Passcode for `/organiser`. Default `afterflow` when unset. |
-| `SQLITE_PATH` | SQLite file path. |
-| `JSON_PATH` | JSON fallback path. |
-| `SUPABASE_URL` | Switches storage to Supabase when set with the service role key. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase key. Never expose this in the browser. |
-| `LLM_API_KEY` | Optional OpenAI-compatible key for the "why you two" text. |
-| `LLM_BASE_URL` | API base. Defaults to `https://api.openai.com/v1`, or `https://api.x.ai/v1` when only `XAI_API_KEY` is set. |
-| `LLM_MODEL` | Model name. Defaults to `gpt-4o-mini` or `grok-3`. |
-| `XAI_API_KEY` | Used when `LLM_API_KEY` is unset. Base URL defaults to `https://api.x.ai/v1`. |
+| `PORT` | Listen port, default `4721` |
+| `ORGANISER_PASSCODE` | Passcode for `/organiser` (default `afterflow`; change it before an event) |
+| `STORAGE` | Force a store, e.g. `netlify-blobs` |
+| `SQLITE_PATH`, `JSON_PATH` | Local file locations |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Postgres storage. The service key is server-only |
+| `LLM_API_KEY` or `XAI_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` | Optional rephrasing of the "why" text |
 
-If no LLM key is set, or the call errors or exceeds 6 seconds, Afterflow uses a template. The template quotes both free-text answers and picks one next step from `event-context.json` (a named partner or a Discord channel).
+Scoring is deterministic. A model may only rephrase it, using just the two cards, the note and `event-context.json`. With no key, an error, or a call over 4 seconds, the built-in template is used.
 
-## Organiser
+### Deploy
 
-Open `/organiser`. The default passcode is `afterflow` unless `ORGANISER_PASSCODE` is set.
-
-The page is a live funnel: sign-ups, connections requested, mutual confirms, followed up. **Delete all data** removes every profile and connection.
-
-`npm run seed:backup` ensures the confirmed demo pair. Opening `/demo` does the same and sends you to that connection page.
-
-## Supabase
-
-1. Create a Supabase project.
-2. Run `supabase/schema.sql` in the SQL editor. Row level security is on and there are no anon policies. The app uses the service role key from the server only.
-3. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
-4. Restart the server. New sign-ups go to Postgres. The local file is not migrated for you.
-
-## Deploy on Netlify
-
-The public site is [afterflow-f1](https://afterflow-f1.netlify.app). `netlify.toml` runs `npm run build`. Netlify detects Next.js and applies its Next.js runtime. On Netlify, sign-ups go to Netlify Blobs (`STORAGE=netlify-blobs`). Local dev stays on SQLite.
-
-To seed the confirmed demo pair into that blob store from this machine:
+Netlify: `netlify.toml` runs `npm run build` and stores sign-ups in Netlify Blobs.
 
 ```bash
-STORAGE=netlify-blobs NETLIFY_SITE_ID=... NETLIFY_AUTH_TOKEN=... npm run seed:backup
+npx netlify-cli deploy --prod
 ```
 
-## Deploy on Vercel
+To seed the `/demo` pair into the hosted blob store:
 
-Vercel has no durable disk, so use Supabase there.
+```bash
+STORAGE=netlify-blobs NETLIFY_SITE_ID=your-site-id NETLIFY_AUTH_TOKEN=your-token npm run seed:backup
+```
 
-1. Push this repo to the host you want Vercel to build.
-2. Import the project. Framework preset: Next.js. Build command `npm run build`.
-3. Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and a real `ORGANISER_PASSCODE`.
-4. Add `LLM_API_KEY` or `XAI_API_KEY` only if you want model-written explanations. The template works without them.
-5. Deploy. The landing QR code uses `window.location.origin`, so it points at the deployed URL.
+Vercel has no durable disk, so use Supabase there: set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and a real `ORGANISER_PASSCODE`, then deploy as a normal Next.js project.
 
-## What still needs a person
+### Organiser view
 
-- A Netlify token (`NETLIFY_AUTH_TOKEN`) to publish https://afterflow-f1.netlify.app. Blobs are the hosted store for that site.
-- A Supabase project and the service role key, if you want Postgres instead of Blobs.
-- An LLM key, if you want model-written copy instead of the template.
-- Change `ORGANISER_PASSCODE` before the room can see the organiser page.
-- Run `npm run seed` on the machine that is hosting the demo if you want the eight labelled demo profiles.
+`/organiser` (passcode) shows a live funnel: sign-ups, connections requested, mutual confirms, followed up, plus **Delete all data**.
+
+</details>
+
+## How we built it
+
+Afterflow was built solo with a small team of agents, and every step is logged with real commits. Read it at [/how-we-built](https://afterflow-f1.netlify.app/how-we-built) or in [BUILD_LOG.md](BUILD_LOG.md).
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).

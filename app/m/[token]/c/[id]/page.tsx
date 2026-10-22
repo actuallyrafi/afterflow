@@ -1,6 +1,8 @@
 "use client";
 
 import { CONNECTION_NEXT_STEPS } from "@/lib/evidence";
+import { firstName } from "@/lib/pending-meet";
+import { withoutRepeats } from "@/lib/recap";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -114,6 +116,9 @@ export default function ConnectionPage() {
       ? `You said ${connection.myFollowUp === "yes" ? "yes" : "not yet"} at ${new Date(connection.myFollowUpAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" })}`
       : null;
 
+  const otherFirst = connection ? firstName(connection.other.name) : "";
+  const why = connection?.journey ? withoutRepeats(connection.journey.why, connection.journey.recap) : "";
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 py-6">
       <Link href={`/m/${token}`} className="text-sm uppercase tracking-[0.16em] text-muted">
@@ -140,9 +145,11 @@ export default function ConnectionPage() {
 
           {!connection.mutual ? (
             <section className="border border-line bg-panel p-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide">Confirm you met</h2>
-              {connection.theirNote ? <p className="mt-3 text-base leading-relaxed">They noted &ldquo;{connection.theirNote}&rdquo;.</p> : null}
-              {connection.myNote ? <p className="mt-3 text-base leading-relaxed">You noted &ldquo;{connection.myNote}&rdquo;.</p> : null}
+              <h2 className="text-sm font-semibold uppercase tracking-wide">
+                {connection.status === "waiting_for_you" ? `Did you meet ${otherFirst}?` : `Sent to ${otherFirst}`}
+              </h2>
+              {connection.theirNote ? <p className="mt-3 text-base leading-relaxed">{otherFirst} noted &ldquo;{connection.theirNote}&rdquo;</p> : null}
+              {connection.myNote ? <p className="mt-3 text-base leading-relaxed">You noted &ldquo;{connection.myNote}&rdquo;</p> : null}
               <p className="mt-3 text-sm text-muted">Contact and LinkedIn stay hidden until you both say yes.</p>
               {connection.status === "waiting_for_you" ? (
                 <button
@@ -154,7 +161,7 @@ export default function ConnectionPage() {
                   Yes, we met
                 </button>
               ) : (
-                <p className="mt-4 text-base">Waiting for {connection.other.name} to confirm.</p>
+                <p className="mt-4 text-base">Waiting for {otherFirst} to confirm.</p>
               )}
               {connection.other.isDemo && connection.status === "waiting_for_them" ? (
                 <button
@@ -178,10 +185,12 @@ export default function ConnectionPage() {
           ) : (
             <div className="flex flex-col gap-4">
               <section className="border border-line bg-panel p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide">1 · Who you both are</h2>
-                <ul className="mt-3 flex flex-col gap-2 text-base leading-relaxed">
+                <h2 className="text-sm font-semibold uppercase tracking-wide">1 · You and {otherFirst}</h2>
+                <ul className="mt-3 flex flex-col gap-3 text-base leading-relaxed">
                   {connection.journey?.recap.map((line) => (
-                    <li key={line}>{line}</li>
+                    <li key={line} className={line.includes('"') ? "border-l-2 border-accent pl-3" : "text-muted"}>
+                      {line}
+                    </li>
                   ))}
                 </ul>
                 {connection.other.contact ? (
@@ -202,16 +211,16 @@ export default function ConnectionPage() {
 
               <section className="border border-line bg-panel p-4">
                 <h2 className="text-sm font-semibold uppercase tracking-wide">2 · Why it is worth continuing</h2>
-                <p className="mt-3 text-base leading-relaxed">{connection.journey?.why}</p>
+                <p className="mt-3 text-base leading-relaxed">{why || connection.journey?.why}</p>
               </section>
 
               <section className="border border-accent bg-panel p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wide">3 · Three ways to keep going</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wide">3 · Ways to keep going</h2>
                 <p className="mt-2 text-sm text-muted">Optional. Pick any. Chatting online is a perfectly fine outcome.</p>
 
                 <div className="mt-4 border-t border-line pt-4">
                   <h3 className="font-semibold">{CONNECTION_NEXT_STEPS[0].label}</h3>
-                  <p className="mt-2 text-sm leading-relaxed">{connection.journey?.opener}</p>
+                  <p className="mt-2 border-l-2 border-line pl-3 text-base leading-relaxed">{connection.journey?.opener}</p>
                   <button type="button" onClick={() => void copyOpener()} className="mt-3 min-h-12 w-full bg-accent font-semibold text-accent-ink">
                     {copied ? "Opener copied" : "Copy opener for Discord, email, or LinkedIn"}
                   </button>
@@ -236,7 +245,7 @@ export default function ConnectionPage() {
                   </button>
                   {connection.journey?.theirLink ? (
                     <p className="mt-2 break-all text-sm">
-                      {connection.other.name} shared {connection.journey.theirLink}
+                      {otherFirst} shared {connection.journey.theirLink}
                     </p>
                   ) : null}
                   {connection.journey?.myLink ? <p className="mt-2 break-all text-sm">You shared {connection.journey.myLink}</p> : null}
@@ -267,7 +276,7 @@ export default function ConnectionPage() {
                   </button>
                   {connection.journey?.theirTime ? (
                     <p className="mt-2 text-sm">
-                      {connection.other.name} suggested {connection.journey.theirTime}
+                      {otherFirst} suggested {connection.journey.theirTime}
                     </p>
                   ) : null}
                   {connection.journey?.myTime ? <p className="mt-2 text-sm">You suggested {connection.journey.myTime}</p> : null}

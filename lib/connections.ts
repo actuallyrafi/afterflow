@@ -90,9 +90,72 @@ function statusFor(mine: string, theirs: string, follow: FollowUp): { status: Co
   return { status: "waiting_for_you", statusLabel: "Needs my confirm" };
 }
 
-function opener(me: Profile, them: Profile, myNote: string): string {
-  const note = myNote ? ` We talked about "${myNote}".` : "";
-  return `Hi ${them.name}, it's ${me.name} from the hackathon.${note} You wrote "${them.tryingTo}". I wrote "${me.tryingTo}". Want to keep going on Discord, email, or LinkedIn?`;
+function first(name: string): string {
+  return name.trim().split(/\s+/)[0] || name.trim();
+}
+
+/** First names, unless both people share one; then full names keep the quotes unambiguous. */
+function namesFor(me: Profile, them: Profile): { mine: string; theirs: string } {
+  const mine = first(me.name);
+  const theirs = first(them.name);
+  if (mine.toLowerCase() === theirs.toLowerCase()) return { mine: me.name, theirs: them.name };
+  return { mine, theirs };
+}
+
+function roleLine(name: string, role: string): string {
+  const text = role.trim().replace(/[.\s]+$/, "");
+  if (!text) return "";
+  // Lower-case only an ordinary capitalised word ("Product designer"), never an acronym ("ML engineer").
+  const softened = /^[A-Z][a-z]/.test(text) ? text[0].toLowerCase() + text.slice(1) : text;
+  const article = /^[aeiou]/i.test(softened) ? "an" : "a";
+  return `${name} is ${article} ${softened}.`;
+}
+
+function looksLikeEmail(contact: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.trim());
+}
+
+/** The note as the writer typed it, without trailing punctuation so it reads inside a sentence. */
+function noteForSentence(note: string): string {
+  return note.trim().replace(/[\s.!?,;:]+$/, "");
+}
+
+function opener(me: Profile, them: Profile, myNote: string, theirNote: string): string {
+  const names = namesFor(me, them);
+  const greeting = `Hi ${first(them.name)}, it's ${names.mine} from the Grok hackathon.`;
+  const note = noteForSentence(myNote) || noteForSentence(theirNote);
+  const middle = note ? ` Still thinking about ${note}.` : " Really glad we met.";
+  const where = looksLikeEmail(them.contact) ? "over email" : "on Discord";
+  return `${greeting}${middle} Want to keep going ${where}?`;
+}
+
+/**
+ * The recap only quotes what people wrote: one quote per person, then the notes.
+ * Each line is a separate sentence so nothing is repeated.
+ */
+function quoted(text: string): string {
+  const value = text.trim();
+  return /[.!?]$/.test(value) ? `"${value}"` : `"${value}".`;
+}
+
+function recapLines(me: Profile, other: Profile, myNote: string, theirNote: string): string[] {
+  const names = namesFor(me, other);
+  const lines: string[] = [];
+  const role = roleLine(names.theirs, other.role);
+  if (role) lines.push(role);
+  if (me.isDemo) lines.push(`${me.name} is a demo profile.`);
+  if (other.isDemo) lines.push(`${other.name} is a demo profile.`);
+  lines.push(`${names.theirs} wrote ${quoted(other.tryingTo)}`);
+  lines.push(`You wrote ${quoted(me.tryingTo)}`);
+  const mine = myNote.trim();
+  const theirs = theirNote.trim();
+  if (mine && theirs && mine.toLowerCase() === theirs.toLowerCase()) {
+    lines.push(`You both noted ${quoted(mine)}`);
+  } else {
+    if (mine) lines.push(`You noted ${quoted(mine)}`);
+    if (theirs) lines.push(`${names.theirs} noted ${quoted(theirs)}`);
+  }
+  return lines;
 }
 
 function toCard(match: MatchRow, me: Profile, other: Profile): ConnectionCard {
@@ -111,18 +174,10 @@ function toCard(match: MatchRow, me: Profile, other: Profile): ConnectionCard {
   const theirTime = side === "a" ? match.bTime : match.aTime;
   const journey: Journey | null = mutual
     ? {
-        recap: [
-          `${other.name} is a ${other.role}.`,
-          ...(me.isDemo ? [`${me.name} is a demo profile.`] : []),
-          ...(other.isDemo ? [`${other.name} is a demo profile.`] : []),
-          `${me.name} wrote "${me.tryingTo}".`,
-          `${other.name} wrote "${other.tryingTo}".`,
-          ...(myNote ? [`You noted "${myNote}".`] : []),
-          ...(theirNote ? [`${other.name} noted "${theirNote}".`] : []),
-        ],
+        recap: recapLines(me, other, myNote, theirNote),
         why: mutualReason(me, other),
         communityStep: match.firstAction,
-        opener: opener(me, other, myNote),
+        opener: opener(me, other, myNote, theirNote),
         myLink,
         theirLink,
         myTime,

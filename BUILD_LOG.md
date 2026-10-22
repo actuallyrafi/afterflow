@@ -60,3 +60,17 @@ Recorded with the PRD log, commit b2a9d3149d9db91fafa6c8fae2ea0ed37c641dde.
 ## Post-freeze bug fix (after 21:50 BST code freeze)
 
 - 22:30 BST, 22 Oct 2026: post-freeze bug fix only, no feature changes. Scanning a personal QR code and then making a card sent people to their own home page instead of "Yes, we met", because phone QR scanners open links in a different browser and the pending meet id lived only in sessionStorage. The meet id is now carried in the /survey URL. Commit 5b6185d.
+
+## Post-event design pass
+
+### 22 Oct 2026, 23:25 BST — Keep the person you scanned in view
+
+After the demo, from Atelier's design review. Built on commit 07e3c59ad01dc70a9d07db06412fbff4fc67bfca. No new features and no change to the rules: still no stranger matching, no prescribed time or place, contacts hidden until both confirm.
+
+- Scanning someone's code now keeps them on screen until "Yes, we met". The card form shows "Connecting with" their name and "Step 1 of 2", and the save button says "Save and continue to" their first name. The meet page then asks "Did you meet" them, with "Card saved. One tap left." and the optional note under the button.
+- The pending meet id still travels in the URL, then sessionStorage, then localStorage, and the localStorage copy now expires after an hour.
+- The connection recap uses first names, quotes each person once, and no longer repeats those quotes in the reason below it. The opener reads like a person wrote it and only uses the note someone actually typed.
+- The landing QR code now sits inside its frame at every width, before and after it loads.
+- Tests: separate test stores no longer share one JSON file on Node 20, and the build log check accepts the hackathon commits that were squashed into this public repo's first commit.
+- The README is rewritten for people who just want to try it.
+- The colour and type restyle is on hold for a new visual direction.
