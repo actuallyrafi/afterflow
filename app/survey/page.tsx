@@ -122,8 +122,12 @@ export default function SurveyPage() {
         return;
       }
       localStorage.setItem("afterflow.token", payload.token);
-      const pending = sessionStorage.getItem("afterflow.meet");
+      const pending =
+        new URLSearchParams(window.location.search).get("meet") ||
+        sessionStorage.getItem("afterflow.meet") ||
+        localStorage.getItem("afterflow.meet");
       sessionStorage.removeItem("afterflow.meet");
+      localStorage.removeItem("afterflow.meet");
       window.location.assign(pending ? `/meet/${pending}` : `/m/${payload.token}`);
     } catch {
       setError("Could not reach Afterflow. Check the connection and try again.");

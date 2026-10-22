@@ -21,7 +21,10 @@ export default function MeetPage() {
     const saved = localStorage.getItem("afterflow.token");
     setToken(saved);
     setReady(true);
-    if (!saved) sessionStorage.setItem("afterflow.meet", publicId);
+    if (!saved) {
+      sessionStorage.setItem("afterflow.meet", publicId);
+      localStorage.setItem("afterflow.meet", publicId);
+    }
   }, [publicId]);
 
   useEffect(() => {
@@ -82,7 +85,7 @@ export default function MeetPage() {
           {!token ? (
             <div className="mt-8 border border-line bg-panel p-4">
               <p className="text-lg">Make your card first, then you can confirm you met {person.name}.</p>
-              <Link href="/survey" className="mt-4 inline-flex min-h-12 items-center bg-accent px-4 font-semibold text-accent-ink">
+              <Link href={`/survey?meet=${encodeURIComponent(publicId)}`} className="mt-4 inline-flex min-h-12 items-center bg-accent px-4 font-semibold text-accent-ink">
                 Make my card
               </Link>
             </div>
