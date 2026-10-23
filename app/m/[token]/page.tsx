@@ -7,7 +7,8 @@ import { useCallback, useEffect, useState } from "react";
 import { EventMenu, filterLabel, type EventFilter } from "@/components/event-menu";
 import { CircleButton, Sheet, takeToast, Toast, TopBar, useToast } from "@/components/ui/chrome";
 import { Icon } from "@/components/ui/icons";
-import { InstallHint } from "@/components/pwa";
+import { RecapCardView } from "@/components/recap";
+import { recapCard, RECAP_COPY } from "@/lib/recap";
 import { hueOf, Mark } from "@/components/ui/mark";
 import { Unavailable } from "@/components/unavailable";
 import { api, rememberToken } from "@/lib/api";
@@ -17,10 +18,6 @@ import { firstOf } from "@/lib/handoff";
 export default function YourPeople() {
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
-  const [justMade, setJustMade] = useState(false);
-  useEffect(() => {
-    setJustMade(new URLSearchParams(window.location.search).get("new") === "1");
-  }, []);
   const [home, setHome] = useState<HomeResult | null>(null);
   const [missing, setMissing] = useState(false);
   const [settings, setSettings] = useState(false);
@@ -73,6 +70,36 @@ export default function YourPeople() {
       show("Stopped. New people won't be filed.");
       await load();
     } else show("Couldn't turn it off. Try again.");
+  }
+
+  // v4.1d: the next-morning recap card (D23). Worked out on this device, in this device's time zone.
+  const [hiddenNow, setHiddenNow] = useState<string[]>([]);
+  const recap =
+    home
+      ? recapCard({
+          now: Date.now(),
+          tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London",
+          connections: home.connections,
+          events: { ...home.events, recapHidden: [...(home.events.recapHidden ?? []), ...hiddenNow] },
+        })
+      : null;
+
+  async function hideRecap(eventId: string) {
+    setHiddenNow((current) => [...current, eventId]);
+    const result = await api(`/api/profiles/${token}/events`, { method: "POST", body: { action: "recap_hide", eventId } });
+    if (!result.ok) {
+      setHiddenNow((current) => current.filter((id) => id !== eventId));
+      show("Couldn't save that. Try again.");
+      return;
+    }
+    show(RECAP_COPY.hiddenToast, {
+      undo: async () => {
+        await api(`/api/profiles/${token}/events`, { method: "POST", body: { action: "recap_show", eventId } });
+        setHiddenNow((current) => current.filter((id) => id !== eventId));
+        await load();
+      },
+    });
+    await load();
   }
 
   const load = useCallback(async () => {
@@ -181,8 +208,6 @@ export default function YourPeople() {
         </div>
       ) : null}
 
-      {/* Right after making a card (/m/{token}?new=1): the quiet "Use it like an app" line (D22). */}
-      {justMade ? <InstallHint myCardToken={null} className="mb-3" /> : null}
 
       {!home ? (
         <div aria-busy="true" className="panel p-4">
@@ -197,6 +222,8 @@ export default function YourPeople() {
           ))}
         </div>
       ) : null}
+
+      {recap ? <RecapCardView token={token} card={recap} onHide={() => void hideRecap(recap.eventId)} /> : null}
 
       {reminder ? (
         <section className="panel mb-3 p-4" aria-label="A gentle reminder">

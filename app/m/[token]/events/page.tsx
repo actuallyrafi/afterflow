@@ -192,6 +192,15 @@ export default function EventsPage() {
                         </span>
                         <Marks marks={event.marks} />
                       </Link>
+                      {!event.empty ? (
+                        <Link
+                          href={`/m/${token}/recap/${encodeURIComponent(event.id)}`}
+                          className="btn btn-sm btn-fill ml-2 flex-none"
+                          aria-label={`Recap for ${event.name}`}
+                        >
+                          Recap
+                        </Link>
+                      ) : null}
                       <button
                         type="button"
                         className="grid size-11 flex-none place-items-center text-muted"

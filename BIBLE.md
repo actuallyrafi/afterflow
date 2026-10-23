@@ -1,8 +1,8 @@
-# AFTERFLOW — Project Bible v1.1 (binding, set by Tanvir 22 Oct 2026, updated 23 Oct 2026)
+# AFTERFLOW — Project Bible v1.2 (binding, set by Tanvir 22 Oct 2026, updated 23 Oct 2026)
 Supersedes PRD.md wherever they conflict. Changes need Tanvir's approval.
 
 ## 0. Positioning
-Afterflow is the connector, not the connection. You do the connecting.
+Afterflow keeps the door open. You two walk through it.
 In Tanvir's words: Afterflow is "a connector, not the connection itself; the connecting is done between the individuals." It gets two people who met to the app they already talk on, and then gets out of the way.
 Feature test: does it get two people talking somewhere else, faster? If not, it doesn't ship.
 Out: a built-in chat or messaging, feeds, and browsable profiles.
@@ -68,3 +68,4 @@ Success: someone returns to ordinary life after an event and finds it easier to 
 ## Changelog
 - v1.0, 22 Oct 2026: binding Bible set by Tanvir.
 - v1.1, 23 Oct 2026: added §0 Positioning ("Afterflow is the connector, not the connection. You do the connecting.", the "talking somewhere else, faster" test, and no built-in chat, feeds or browsable profiles). Approved by Tanvir.
+- v1.2, 23 Oct 2026: §0 positioning line changed to "Afterflow keeps the door open. You two walk through it." (replacing "Afterflow is the connector, not the connection. You do the connecting."). Tanvir approved the wording on 23 Oct 2026.

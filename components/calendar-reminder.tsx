@@ -12,6 +12,7 @@ import {
   type ReminderTime,
 } from "@/lib/calendar";
 import { firstOf } from "@/lib/handoff";
+import { RECAP_COPY, recapReminderFor } from "@/lib/recap";
 import { Sheet } from "./ui/chrome";
 import { Icon } from "./ui/icons";
 
@@ -50,14 +51,17 @@ export function CalendarReminder({
   metAt,
   onAdded,
   onToast,
+  recap,
 }: {
   connectionId: string;
   theirName: string;
   metAt: string;
   onAdded: () => void;
   onToast: (text: string) => void;
+  /** v4.1d: the same sheet for an event recap ("Say hi to people from {Event}", /recap/{eventId}). */
+  recap?: { eventId: string; eventName: string; lastMutual: number };
 }) {
-  const key = `afterflow.calendar.${connectionId}`;
+  const key = recap ? `afterflow.calendar.recap.${recap.eventId}` : `afterflow.calendar.${connectionId}`;
   const first = firstOf(theirName);
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState<Saved | null>(null);
@@ -76,8 +80,11 @@ export function CalendarReminder({
   }, [key]);
 
   const reminder = useMemo(
-    () => reminderFor({ connectionId, theirName, metAt, origin: origin || "https://afterflow-f1.netlify.app", time: time ?? undefined }),
-    [connectionId, theirName, metAt, origin, time],
+    () =>
+      recap
+        ? recapReminderFor({ ...recap, origin: origin || "https://afterflow-f1.netlify.app", time: time ?? undefined })
+        : reminderFor({ connectionId, theirName, metAt, origin: origin || "https://afterflow-f1.netlify.app", time: time ?? undefined }),
+    [connectionId, theirName, metAt, origin, time, recap],
   );
 
   function markAdded() {
@@ -97,7 +104,7 @@ export function CalendarReminder({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = icsFilename(theirName);
+    link.download = recap ? "say-hi-recap.ics" : icsFilename(theirName);
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -124,27 +131,27 @@ export function CalendarReminder({
               </button>
             </div>
           </div>
-          <p className="mx-4 mt-2 text-[13px] leading-[18px] text-muted">Afterflow won&apos;t send its own reminder for {first} as well.</p>
+          {recap ? null : <p className="mx-4 mt-2 text-[13px] leading-[18px] text-muted">Afterflow won&apos;t send its own reminder for {first} as well.</p>}
         </div>
       ) : (
-        <button
+        <button id={recap ? "recap-cal" : undefined}
           type="button"
           className="mt-2 flex min-h-[54px] w-full items-center gap-3 rounded-[18px] px-2 text-left text-[17px] hover:bg-fill/60"
           onClick={() => setOpen(true)}
           aria-haspopup="dialog"
         >
           <Icon name="calendar" />
-          <span className="flex-1">Add a reminder to my calendar</span>
+          <span className="flex-1">{recap ? RECAP_COPY.calRow : "Add a reminder to my calendar"}</span>
           <Icon name="chev" className="chev" />
         </button>
       )}
 
       <Sheet open={open} onClose={() => setOpen(false)} labelledBy="cal-title" describedBy="cal-sub">
         <h2 id="cal-title" className="round text-center text-[22px] leading-7 font-black">
-          Add a reminder to my calendar
+          {recap ? RECAP_COPY.calRow : "Add a reminder to my calendar"}
         </h2>
         <p id="cal-sub" className="mx-auto mt-1 mb-4 max-w-[300px] text-center text-[15px] leading-[21px] text-muted">
-          A nudge in a few days, in your own calendar. You can ignore it.
+          {recap ? "One nudge in your own calendar to say hi to the people you met. You can ignore it." : "A nudge in a few days, in your own calendar. You can ignore it."}
         </p>
         <div className="group">
           <div className="item flush items-center">
@@ -193,7 +200,7 @@ export function CalendarReminder({
             Download .ics file
           </button>
         </div>
-        <p className="mt-3 text-center text-[13px] text-muted">This is your one reminder for {first}.</p>
+        {recap ? null : <p className="mt-3 text-center text-[13px] text-muted">This is your one reminder for {first}.</p>}
       </Sheet>
     </>
   );

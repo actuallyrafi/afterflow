@@ -16,6 +16,8 @@ export function tabFor(pathname: string, token: string): { key: TabKey; exact: b
   if (rest === "") return { key: "people", exact: true };
   if (rest === "/events") return { key: "events", exact: true };
   if (rest === "/card") return { key: "card", exact: true };
+  // v4.1d: an event recap is a list-level page in the Your people stack, so the bar stays.
+  if (/^\/recap\/[^/]+$/.test(rest)) return { key: "people", exact: true };
   if (rest.startsWith("/c/") || rest.startsWith("/settings")) return { key: "people", exact: false };
   return null;
 }

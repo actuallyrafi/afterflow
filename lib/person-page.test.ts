@@ -42,5 +42,16 @@ test("Say hi keeps the prefilled message, copy button, Other ways to reach, and 
 
 test("How we built carries the v1.1 positioning line", () => {
   const how = fs.readFileSync("app/how-we-built/page.tsx", "utf8");
-  assert.match(how, /Afterflow is the connector, not the connection\. You do the connecting\./);
+  assert.match(how, /Afterflow keeps the door open\. You two walk through it\./);
+});
+
+test("D24: the positioning line is the new one everywhere; the old landing line is gone", () => {
+  const line = /Afterflow keeps the door open\. You two walk through it\./;
+  for (const file of ["app/page.tsx", "app/how-we-built/page.tsx", "README.md", "BIBLE.md"]) {
+    const text = fs.readFileSync(file, "utf8");
+    assert.match(text, line, file);
+    if (file !== "BIBLE.md") assert.doesNotMatch(text, /connector, not the connection/, file);
+  }
+  const landing = fs.readFileSync("app/page.tsx", "utf8");
+  assert.doesNotMatch(landing, /match you with strangers|score anyone|It started at the/);
 });

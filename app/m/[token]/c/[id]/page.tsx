@@ -241,6 +241,10 @@ export default function ConnectionPage() {
               myContacts={me.contacts}
               myName={me.name}
               onToast={(text) => show(text)}
+              onOpened={(via) => {
+                // v4.1d: noted for you only, so the event recap shows "Opened WhatsApp".
+                void api(`/api/profiles/${token}/connections/${id}`, { method: "POST", body: { action: "hello_opened", via } });
+              }}
             />
           </div>
           {me.reminders && !connection.muted ? (

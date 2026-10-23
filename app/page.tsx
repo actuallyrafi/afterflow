@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { EventQr } from "@/components/event-qr";
-import { InstallGuideLink, InstallGuideSection } from "@/components/install-guide";
+import { LANDING_INSTALL_LINE } from "@/lib/install-guide";
 import { savedToken } from "@/lib/api";
-import { EVENT, EVENT_LINE } from "@/lib/event";
+import { EVENT_LINE } from "@/lib/event";
 
 // v4.1c (D18, per Tanvir): the landing is long again, like the hackathon page, with its extra
 // lines brought back and rewritten to match what v4 actually does. Every line here is true today.
@@ -100,11 +100,7 @@ export default function HomePage() {
           Afterflow is for people who already met in real life and want to keep casually talking, so strangers can become familiar,
           and maybe friends.
         </p>
-        <p className="mt-3 text-[16px] leading-6 text-muted">
-          It doesn&apos;t match you with strangers, score anyone, or replace the apps you already use. It started at the {EVENT.name}{" "}
-          ({EVENT_DAY_LONG}).
-        </p>
-        <p className="round mt-5 text-[19px] leading-7 font-extrabold">Afterflow is the connector, not the connection. You do the connecting.</p>
+        <p className="round mt-5 text-[19px] leading-7 font-extrabold">Afterflow keeps the door open. You two walk through it.</p>
       </section>
 
       <section className="mt-12" aria-labelledby="how-title">
@@ -139,14 +135,13 @@ export default function HomePage() {
         </ul>
       </section>
 
-      <InstallGuideSection />
-
       <section className="mt-12 max-w-2xl" aria-labelledby="start-title">
         <h2 id="start-title" className="round text-[22px] leading-7 font-black">
           Met someone? Make your card and show it to them.
         </h2>
         <p className="mt-2 text-[15px] leading-[22px] text-muted">Three fields, no account, no password. Your private link is saved on this phone.</p>
         <div className="mt-5">{cta}</div>
+        <p className="mt-4 text-[13px] leading-[18px] text-muted">{LANDING_INSTALL_LINE}</p>
       </section>
 
       <footer className="flex flex-wrap gap-x-5 gap-y-2 pt-14 text-[13px] text-muted">
@@ -157,15 +152,8 @@ export default function HomePage() {
         <Link href="/organiser" className="underline underline-offset-2">
           Organiser
         </Link>
-        <InstallGuideLink className="underline underline-offset-2" />
       </footer>
     </main>
   );
 }
 
-const EVENT_DAY_LONG = new Date(`${EVENT.date}T12:00:00Z`).toLocaleDateString("en-GB", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  timeZone: "Europe/London",
-});

@@ -134,3 +134,15 @@ On the local branch v4-redesign. Preview only, not production. All per Tanvir.
 - The one gentle reminder is now on for new cards. Turn it off any time on My card. Cards saved before the setting existed read as on. A saved "off" stays off. Nothing is rewritten in bulk.
 - You can add Afterflow to your home screen: there's a web app manifest, Pixel's icons, Apple tags and a small service worker. The worker keeps only the app's static files and the public start page. It never keeps API answers, your own /m pages, connection or card links. On your own pages the manifest opens your own Your people, so the home-screen app opens signed in, even on iPhone, where home-screen apps don't share Safari's storage.
 - "Use it like an app" is a short guide with three steps for your phone (iPhone Safari or Android Chrome). Open it from a quiet line on My card, the line you see right after making a card, or the landing page. It stays hidden when Afterflow is already running from the home screen.
+
+### 23 Oct 2026, 08:06 BST — v4.1d: the next-morning event recap, the install step, every contact saved
+
+On the local branch v4-redesign. Preview only, not production. All per Tanvir.
+
+- The morning after an event, Your people shows one small card: "{Event} · yesterday, Say hi to the people you met", with up to three marks and Open. It shows from 07:00 the day after the last time you and someone from that event both said yes, until the end of the third day. It goes when you hide it (with Undo) or when everyone in it is done. Only the most recent event gets a card. People with no event don't get one. It never uses push and doesn't change the per-person reminder.
+- The recap screen lists everyone from the event you both said yes to. Each row has Say hi (or Copy hi for Discord), which opens their app with your hello ready, and Mark as talked, which works any time. A row shows "Opened WhatsApp" once you've opened a hello. When everyone is done, it says so, without counting anyone. Events has a Recap button for each event with people in it.
+- A calendar reminder for a recap holds only /recap/{event}. That opens the recap on your own phone and shows the same neutral page as other reminders anywhere else.
+- Right after making a card on a phone, a new step, "Add Afterflow to your home screen", shows that phone's steps, with Done and Not now. It's skipped when Afterflow is already on the home screen. The landing page no longer has the guide, only one short line. The hint on My card stays.
+- The landing drops the "doesn't match you with strangers…" line. The positioning line is now "Afterflow keeps the door open. You two walk through it." here, on the landing, in the README and in BIBLE.md (v1.2, approved by Tanvir on 23 Oct).
+- Make your card: each app tab keeps what you type, and every one you fill in is saved. The first one you filled is starred. A dot marks tabs with something in them. "Add another way" is gone from the form.
+- 92 tests pass. 38 cross-engine checks pass in each of Chromium, Firefox and WebKit.

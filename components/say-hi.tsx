@@ -6,9 +6,9 @@ import { CHANNEL_LABEL, parseContact, type Channel } from "@/lib/survey";
 import { Icon, type IconName } from "./ui/icons";
 import { Mark } from "./ui/mark";
 
-const CHANNEL_ICON: Record<Channel, IconName> = { whatsapp: "whatsapp", discord: "discord", instagram: "camera", email: "mail" };
+export const CHANNEL_ICON: Record<Channel, IconName> = { whatsapp: "whatsapp", discord: "discord", instagram: "camera", email: "mail" };
 
-async function copyText(text: string): Promise<boolean> {
+export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
     return true;
@@ -47,7 +47,8 @@ function subline(option: Handoff): React.ReactNode {
 /**
  * Say hi (spec v4.1 §3.4): an editable opener and a way out to an app you already use.
  * A shared app comes first (the first one in *their* order), then their starred one, then the rest
- * in their order. Afterflow never records whether you sent anything.
+ * in their order. Afterflow never records whether you sent anything; since v4.1d it notes, for you
+ * only, which app a hello was opened in (the recap shows "Opened WhatsApp").
  */
 export function SayHi({
   connectionId,
@@ -57,6 +58,7 @@ export function SayHi({
   myContacts,
   myName,
   onToast,
+  onOpened,
 }: {
   connectionId: string;
   theirName: string;
@@ -65,6 +67,8 @@ export function SayHi({
   myContacts: string[];
   myName: string;
   onToast: (text: string) => void;
+  /** v4.1d: a hand-off was opened (or Discord's message copied). */
+  onOpened?: (via: "whatsapp" | "instagram" | "email" | "discord" | "discord_copy") => void;
 }) {
   const storageKey = `afterflow.opener.${connectionId}`;
   const [message, setMessage] = useState(() => defaultOpener(theirName, myName));
@@ -100,12 +104,16 @@ export function SayHi({
     }
   }
 
-  async function copy(text: string, done: string) {
-    onToast((await copyText(text)) ? done : "Couldn't copy. Select the text and copy it.");
+  async function copy(text: string, done: string, via?: "discord_copy") {
+    const ok = await copyText(text);
+    onToast(ok ? done : "Couldn't copy. Select the text and copy it.");
+    // Discord with its link off: copying the message is the hand-off.
+    if (ok && via) onOpened?.(via);
   }
 
   /** Instagram / Discord-on: copy the hi first, then open. */
   function beforeOpen(option: Handoff) {
+    onOpened?.(option.channel);
     if (!option.copyFirst) return;
     void copyText(message).then((ok) => onToast(ok ? "Message copied. Paste it in your DM." : "Couldn't copy the message. It's still here to copy."));
   }
@@ -189,7 +197,7 @@ export function SayHi({
   );
 }
 
-type CopyFn = (text: string, done: string) => Promise<void>;
+type CopyFn = (text: string, done: string, via?: "discord_copy") => Promise<void>;
 
 function Actions({
   option,
@@ -216,7 +224,7 @@ function Actions({
         <button
           type="button"
           className={`btn ${compact ? "btn-sm !gap-1.5 !px-3" : ""} ${tone} min-w-0 flex-1`}
-          onClick={() => void onCopy(message, "Message copied. Paste it in your DM.")}
+          onClick={() => void onCopy(message, "Message copied. Paste it in your DM.", "discord_copy")}
         >
           <Icon name="copy" size={17} />
           Copy message

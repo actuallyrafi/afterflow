@@ -6,7 +6,7 @@
 
 <p align="center">
   Keep the people you meet in your life.<br>
-  <em>Afterflow is the connector, not the connection. You do the connecting.</em>
+  <em>Afterflow keeps the door open. You two walk through it.</em>
 </p>
 
 <p align="center">

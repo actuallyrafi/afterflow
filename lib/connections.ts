@@ -13,7 +13,7 @@ import {
 import { firstOf } from "./handoff";
 import { nameMatches } from "./name-match";
 import { parseContact, validateSubmission, type Channel } from "./survey";
-import type { BlockRecord, MatchPatch, MatchRow, Profile, Store } from "./store";
+import { helloVia, type BlockRecord, type HelloVia, type MatchPatch, type MatchRow, type Profile, type Store } from "./store";
 
 /** Undo stays possible this long after Remove or Block; then the connection record is deleted. */
 export const PURGE_AFTER_MS = 60_000;
@@ -35,6 +35,10 @@ export type ConnectionCard = {
   talkedAgainAt: string | null;
   /** Your private note. */
   myNote: string;
+  /** v4.1d: when you both said yes (older rows: when it was first made). Null until then. */
+  mutualAt: string | null;
+  /** v4.1d recap: where you opened a hello for them, and when. Only you see this; it isn't proof of a message. */
+  hello: { via: HelloVia; at: string } | null;
   /** Both people see this, once you've both said yes. */
   sharedNote: string;
   myAnswer: string;
@@ -75,6 +79,8 @@ export type EventsView = {
   /** People not in any event ("No event"). */
   unfiled: { marks: EventMark[]; empty: boolean };
   current: { eventId: string; until: string; label: string; name: string } | null;
+  /** v4.1d: events whose recap card you hid. */
+  recapHidden: string[];
 };
 
 export type HomeResult = {
@@ -160,6 +166,8 @@ function toCard(match: MatchRow, me: Profile, other: Profile, book?: EventBook):
       ? "waiting_for_them"
       : "waiting_for_you";
   const follow = side === "a" ? match.aFollowUp : match.bFollowUp;
+  const via = side === "a" ? match.aHelloVia : match.bHelloVia;
+  const viaAt = side === "a" ? match.aHelloAt : match.bHelloAt;
   return {
     id: match.id,
     status,
@@ -168,6 +176,8 @@ function toCard(match: MatchRow, me: Profile, other: Profile, book?: EventBook):
     talkedAgain: follow === "yes",
     talkedAgainAt: follow === "yes" ? (side === "a" ? match.aFollowUpAt : match.bFollowUpAt) : null,
     myNote: side === "a" ? match.aNote : match.bNote,
+    mutualAt: mutual ? (match.mutualAt ?? match.createdAt) : null,
+    hello: mutual && via && viaAt ? { via, at: viaAt } : null,
     sharedNote: mutual ? match.sharedNote : "",
     myAnswer: me.answer,
     metAt: match.createdAt,
@@ -248,6 +258,7 @@ function eventsView(book: EventBook, cards: ConnectionCard[], now: number): Even
     })),
     unfiled: marksFor(null),
     current: current && currentEvent ? { ...current, label: eventLabel(currentEvent), name: currentEvent.name } : null,
+    recapHidden: book.recapHidden ?? [],
   };
 }
 
@@ -298,6 +309,38 @@ export async function listHome(store: Store, token: string, options: { now?: num
   }
   const connections = rows.map((row) => row.card);
   return { profile: ownProfile(me), connections, events: eventsView(book, connections, now), reminder };
+}
+
+export type RecapResult = {
+  me: { name: string; contacts: string[]; isDemo: boolean };
+  event: { id: string; name: string; date: string; label: string };
+  /** Mutual, unmuted people filed under the event, in the order you both said yes. */
+  people: ConnectionCard[];
+  hidden: boolean;
+};
+
+/**
+ * v4.1d: one event's recap, for the recap screen. Your own event only (unknown or anyone else's
+ * event: null, and the route answers 404 with nothing in it). No side effects: unlike Your people,
+ * it never serves or uses up the per-person reminder.
+ */
+export async function getRecap(store: Store, token: string, eventId: string, options: { now?: number } = {}): Promise<RecapResult | null> {
+  const now = options.now ?? Date.now();
+  const me = await store.getProfileByToken(token);
+  if (!me) return null;
+  const { rows, book } = await visibleCards(store, me, now);
+  const event = book.events.find((item) => item.id === eventId);
+  if (!event) return null;
+  const people = rows
+    .map((row) => row.card)
+    .filter((card) => card.eventId === event.id && card.mutual && card.status === "connected" && !card.muted)
+    .sort((left, right) => Date.parse(left.mutualAt ?? left.metAt) - Date.parse(right.mutualAt ?? right.metAt));
+  return {
+    me: { name: me.name, contacts: me.contacts, isDemo: me.isDemo },
+    event: { id: event.id, name: event.name, date: event.date, label: eventLabel(event) },
+    people,
+    hidden: (book.recapHidden ?? []).includes(event.id),
+  };
 }
 
 export async function listEvents(store: Store, token: string, options: { now?: number } = {}): Promise<EventsView | null> {
@@ -469,7 +512,7 @@ export async function addMet(
   return { status: 200, body: { connection: toCard(match, me, other, await loadBook(store, me)) } };
 }
 
-export type ActionBody = { action?: unknown; text?: unknown };
+export type ActionBody = { action?: unknown; text?: unknown; via?: unknown };
 
 export async function getConnection(
   store: Store,
@@ -535,13 +578,18 @@ export async function actOnConnection(
 
   if (!visibleTo(match, me.id, blocks)) return { status: 404, body: { error: GONE } };
   const mutual = !match.shadow && match.aStatus === "accepted" && match.bStatus === "accepted";
-  const mine = <K extends "Status" | "Muted" | "Note" | "FollowUp" | "FollowUpAt" | "ReminderDone">(key: K) =>
+  const mine = <K extends "Status" | "Muted" | "Note" | "FollowUp" | "FollowUpAt" | "ReminderDone" | "HelloVia" | "HelloAt">(key: K) =>
     `${side}${key}` as `a${K}` | `b${K}`;
 
   switch (action) {
     case "confirm": {
       if (match.shadow) return card(match);
-      const confirmed = await store.patchMatch(match.id, { [mine("Status")]: "accepted", met: true });
+      const theirsAccepted = (side === "a" ? match.bStatus : match.aStatus) === "accepted";
+      const confirmed = await store.patchMatch(match.id, {
+        [mine("Status")]: "accepted",
+        met: true,
+        ...(theirsAccepted && !match.mutualAt ? { mutualAt: new Date().toISOString() } : {}),
+      });
       if (confirmed) {
         await fileUnderCurrent(store, me, match.id);
         const filed = await store.readEventBook(me.id);
@@ -557,7 +605,10 @@ export async function actOnConnection(
     case "simulate_demo_confirm": {
       if (!other.isDemo) return { status: 400, body: { error: "That person has to say yes themselves." } };
       const theirs = side === "a" ? "bStatus" : "aStatus";
-      return card(await store.patchMatch(match.id, { [theirs]: "accepted", met: true }));
+      const mineAccepted = (side === "a" ? match.aStatus : match.bStatus) === "accepted";
+      return card(
+        await store.patchMatch(match.id, { [theirs]: "accepted", met: true, ...(mineAccepted && !match.mutualAt ? { mutualAt: new Date().toISOString() } : {}) }),
+      );
     }
     case "mute":
     case "unmute":
@@ -594,6 +645,14 @@ export async function actOnConnection(
           sharedNoteAt: new Date().toISOString(),
         }),
       );
+    }
+    case "hello_opened": {
+      // v4.1d: a Say hi hand-off was opened (or, Discord with its link off, the message copied).
+      // Private to you. It says an app opened, nothing about whether anything was sent.
+      if (!mutual) return { status: 400, body: { error: "That opens once you've both said yes." } };
+      const via = helloVia(body.via);
+      if (!via) return { status: 400, body: { error: "Unknown app." } };
+      return card(await store.patchMatch(match.id, { [mine("HelloVia")]: via, [mine("HelloAt")]: new Date().toISOString() }));
     }
     case "reminder_done":
       return card(await store.patchMatch(match.id, { [mine("ReminderDone")]: true }));

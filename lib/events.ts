@@ -19,6 +19,8 @@ export type EventBook = {
   filed: Record<string, string>;
   /** "I'm at an event now": new connections go here until `until` (4am or 12 hours) or until turned off. */
   current: CurrentEvent | null;
+  /** v4.1d: events whose recap card you hid. The recap screen itself stays reachable. */
+  recapHidden?: string[];
 };
 
 export const EVENT_NAME_MAX = 60;
@@ -140,7 +142,10 @@ export function normalizeEventBook(raw: unknown): EventBook | null {
       current = { eventId: c.eventId, until: c.until };
     }
   }
-  return { events, filed, current };
+  const recapHidden = Array.isArray(row.recapHidden)
+    ? [...new Set(row.recapHidden.filter((id): id is string => typeof id === "string" && ids.has(id)))]
+    : [];
+  return { events, filed, current, ...(recapHidden.length ? { recapHidden } : {}) };
 }
 
 /**
@@ -192,7 +197,9 @@ export type EventEdit =
   | { action: "start"; eventId: unknown }
   | { action: "end" }
   | { action: "file"; connectionId: unknown; eventId: unknown }
-  | { action: "restore"; event: unknown; connectionIds: unknown };
+  | { action: "restore"; event: unknown; connectionIds: unknown }
+  | { action: "recap_hide"; eventId: unknown }
+  | { action: "recap_show"; eventId: unknown };
 
 export type EditResult = { ok: true; book: EventBook; eventId?: string } | { ok: false; status: number; error: string };
 
@@ -203,7 +210,7 @@ export function applyEventEdit(
   options: { now?: number; knownConnection?: (id: string) => boolean; newId?: () => string } = {},
 ): EditResult {
   const now = options.now ?? Date.now();
-  const next: EventBook = { events: [...book.events], filed: { ...book.filed }, current: book.current };
+  const next: EventBook = { events: [...book.events], filed: { ...book.filed }, current: book.current, ...(book.recapHidden ? { recapHidden: [...book.recapHidden] } : {}) };
   const find = (id: unknown) => (typeof id === "string" ? next.events.find((event) => event.id === id) : undefined);
   switch (edit.action) {
     case "create": {
@@ -236,6 +243,7 @@ export function applyEventEdit(
       next.events = next.events.filter((item) => item.id !== event.id);
       for (const [connectionId, eventId] of Object.entries(next.filed)) if (eventId === event.id) delete next.filed[connectionId];
       if (next.current?.eventId === event.id) next.current = null;
+      if (next.recapHidden) next.recapHidden = next.recapHidden.filter((id) => id !== event.id);
       return { ok: true, book: next };
     }
     case "start": {
@@ -274,6 +282,17 @@ export function applyEventEdit(
         }
       }
       return { ok: true, book: next, eventId: restored.id };
+    }
+    case "recap_hide":
+    case "recap_show": {
+      // v4.1d: hiding the recap card is for good (a later connection never re-shows it); Undo shows it again.
+      const event = find(edit.eventId);
+      if (!event) return { ok: false, status: 404, error: "That event isn't here anymore." };
+      const hidden = new Set(next.recapHidden ?? []);
+      if (edit.action === "recap_hide") hidden.add(event.id);
+      else hidden.delete(event.id);
+      next.recapHidden = [...hidden];
+      return { ok: true, book: next, eventId: event.id };
     }
     default:
       return { ok: false, status: 400, error: "Unknown action." };

@@ -61,7 +61,25 @@ export type MatchRow = {
   blockedAt: string | null;
   /** A request made after a block: shown to the requester as "waiting", never to the blocker. */
   shadow: boolean;
+  /** v4.1d: when both had said yes. Older rows don't have it; readers fall back to createdAt. */
+  mutualAt: string | null;
+  /**
+   * v4.1d recap: the app a Say hi hand-off was opened in, per side, and when. Private to that side.
+   * We only know the app opened, never whether anything was sent.
+   */
+  aHelloVia: HelloVia | null;
+  aHelloAt: string | null;
+  bHelloVia: HelloVia | null;
+  bHelloAt: string | null;
 };
+
+/** Where a hello was opened: an app, or "discord_copy" (Discord deep link off: the message was copied). */
+export const HELLO_VIAS = ["whatsapp", "instagram", "email", "discord", "discord_copy"] as const;
+export type HelloVia = (typeof HELLO_VIAS)[number];
+
+export function helloVia(value: unknown): HelloVia | null {
+  return typeof value === "string" && (HELLO_VIAS as readonly string[]).includes(value) ? (value as HelloVia) : null;
+}
 
 export type MatchPatch = Partial<Omit<MatchRow, "id" | "aId" | "bId" | "createdAt">>;
 
@@ -207,6 +225,11 @@ export function normalizeMatch(raw: unknown): MatchRow | null {
     blockedBy: nullable(row.blockedBy),
     blockedAt: nullable(row.blockedAt),
     shadow: bool(row.shadow),
+    mutualAt: nullable(row.mutualAt),
+    aHelloVia: helloVia(row.aHelloVia),
+    aHelloAt: nullable(row.aHelloAt),
+    bHelloVia: helloVia(row.bHelloVia),
+    bHelloAt: nullable(row.bHelloAt),
   };
 }
 
@@ -238,6 +261,11 @@ export function initMatch(input: NewMatch): MatchRow {
     blockedBy: null,
     blockedAt: null,
     shadow: Boolean(input.shadow),
+    mutualAt: input.aStatus === "accepted" && input.bStatus === "accepted" && !input.shadow ? new Date().toISOString() : null,
+    aHelloVia: null,
+    aHelloAt: null,
+    bHelloVia: null,
+    bHelloAt: null,
   };
 }
 
@@ -297,6 +325,11 @@ export const MATCH_STATE_KEYS = [
   "blockedBy",
   "blockedAt",
   "shadow",
+  "mutualAt",
+  "aHelloVia",
+  "aHelloAt",
+  "bHelloVia",
+  "bHelloAt",
 ] as const;
 
 export function matchState(row: MatchRow): string {

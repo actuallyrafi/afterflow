@@ -37,3 +37,18 @@ export function installSteps(platform: InstallPlatform, canPrompt: boolean): Ins
   if (platform === "ios") return IOS_STEPS;
   return canPrompt ? ANDROID_PROMPT_STEPS : ANDROID_MENU_STEPS;
 }
+
+/** v4.1d (D24): the install step shown right after making a card, before Your people. */
+export const INSTALL_STEP_TITLE = "Add Afterflow to your home screen";
+export const INSTALL_STEP_SIGNED_IN = "You're adding it from your own card, so it opens signed in.";
+export const LANDING_INSTALL_LINE = "Once your card is made, we'll show you how to add Afterflow to your home screen.";
+
+/**
+ * Where a newly made card goes next. Already running from the home screen, or a computer (no
+ * phone steps to show): straight to Your people. A phone in the browser: the install step first.
+ */
+export function afterCardPath(token: string, device: { standalone: boolean; platform: InstallPlatform }): string {
+  const home = `/m/${encodeURIComponent(token)}`;
+  if (device.standalone || device.platform === "other") return home;
+  return `${home}/install`;
+}

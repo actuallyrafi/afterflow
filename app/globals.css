@@ -405,3 +405,30 @@ dialog.sheet.closing::backdrop { animation: fade-out 0.24s ease-in both; }
 
 /* v4.1b: Delete card lives at the very bottom of My card, well clear of everything else. */
 .danger-zone { margin-top: 72px; padding-bottom: 8px; scroll-margin-bottom: calc(64px + 8px + env(safe-area-inset-bottom) + 24px); }
+
+/* v4.1d next-morning event recap (design-spec-v41c §3.6). No counts, no progress. */
+.recap-card { background: var(--panel); border-radius: 24px; padding: 14px 16px; position: relative; display: flex; flex-direction: column; }
+.recap-card .over { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--muted); padding-right: 30px; }
+.recap-card .title { font-family: var(--font-round); font-size: 17px; line-height: 22px; font-weight: 800; margin-top: 2px; }
+.recap-card .hide { position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; display: grid; place-items: center; color: var(--muted); border-radius: 9999px; }
+.recap-card .hide:hover { color: var(--ink); }
+.mark-stack { display: flex; }
+.mark-stack > .mark { box-shadow: 0 0 0 2px var(--panel); }
+.mark-stack > .mark + .mark { margin-left: -6px; }
+.recap-list { background: var(--panel); border-radius: 24px; }
+.recap-row { display: flex; align-items: center; gap: 12px; min-height: 78px; padding: 12px 14px 12px 16px; position: relative; }
+.recap-row + .recap-row::before { content: ""; position: absolute; top: 0; left: 76px; right: 14px; border-top: 0.5px solid var(--line); }
+.recap-row .quote { font-size: 14px; line-height: 19px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recap-row .body { min-width: 0; flex: 1; display: flex; align-items: center; gap: 12px; text-align: left; border-radius: 16px; }
+.hi { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 38px; padding: 0 14px 0 11px; border-radius: 9999px; background: var(--ink); color: var(--on-ink); font-weight: 600; font-size: 15px; white-space: nowrap; }
+.hi .i { width: 18px; height: 18px; }
+.talk { display: inline-flex; flex: none; align-items: center; gap: 5px; height: 32px; padding: 0 11px; border-radius: 9999px; font-size: 13px; font-weight: 600; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); white-space: nowrap; }
+.talk.sm { height: 28px; padding: 0 10px; font-size: 12px; margin-top: 6px; }
+.talk[aria-checked="true"] { background: var(--live-tint); color: var(--live-deep); box-shadow: none; }
+.talk .i { width: 14px; height: 14px; }
+@media (prefers-contrast: more) { .talk { box-shadow: inset 0 0 0 1.5px var(--ink); } }
+.recap-done .mark-stack > .mark { animation: recap-rise 0.32s ease-out both; }
+@keyframes recap-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .recap-done .mark-stack > .mark { animation: none; } }
+.seg-dot { position: absolute; top: 5px; right: 7px; width: 7px; height: 7px; border-radius: 999px; background: var(--live-deep); box-shadow: 0 0 0 1.5px var(--fill); }
+.seg button[aria-checked="true"] .seg-dot { box-shadow: 0 0 0 1.5px var(--panel); }

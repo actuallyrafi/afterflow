@@ -9,6 +9,7 @@ test("the bottom nav has Your people, Events and My card, and knows the current 
   assert.deepEqual(tabFor("/m/tok/events", "tok"), { key: "events", exact: true });
   assert.deepEqual(tabFor("/m/tok/card", "tok"), { key: "card", exact: true });
   assert.deepEqual(tabFor("/m/tok/c/abc", "tok"), { key: "people", exact: false });
+  assert.deepEqual(tabFor("/m/tok/recap/ev1", "tok"), { key: "people", exact: true }, "v4.1d: the recap keeps the bar");
   assert.deepEqual(tabFor("/m/tok/settings/blocked", "tok"), { key: "people", exact: false });
   assert.equal(tabFor("/survey", "tok"), null);
 });

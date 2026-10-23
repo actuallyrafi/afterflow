@@ -227,3 +227,40 @@ export function validateSubmission(
 
   return { ok: true, value: { name, contact: contact.value, contacts, answer } };
 }
+
+/**
+ * v4.1d (D25): "Best way to reach you" keeps one value per app tab. Switching tabs never clears
+ * anything; on save every non-empty value becomes a contact (one per app).
+ */
+export type TabValues = Partial<Record<Channel, string>>;
+export const TABS_HELP = "Fill in any you use. We'll save them all.";
+export const TABS_EMPTY = "Add at least one way to reach you.";
+
+/** Keeps the order you filled the tabs in: a tab joins when it gets a value and leaves when emptied. */
+export function fillOrder(order: Channel[], channel: Channel, value: string): Channel[] {
+  const without = order.filter((item) => item !== channel);
+  return value.trim() ? (order.includes(channel) ? order : [...without, channel]) : without;
+}
+
+/**
+ * What a save sends. The starred (preferred) contact is the first tab you filled in; the rest follow
+ * in the order you filled them. Each value is checked on its own; the first bad one (in tab order)
+ * is returned so the form can switch to that tab and show the error there.
+ */
+export function collectTabs(
+  values: TabValues,
+  order: Channel[] = [],
+): { contacts: { channel: Channel; value: string }[]; preferred: Channel | null; invalid: { channel: Channel; error: string } | null } {
+  const filled = CHANNELS.filter((channel) => (values[channel] ?? "").trim());
+  const ordered = [...order.filter((channel) => filled.includes(channel)), ...filled.filter((channel) => !order.includes(channel))];
+  for (const channel of filled) {
+    const result = normalizeContact(channel, values[channel]);
+    if (!result.ok) return { contacts: [], preferred: null, invalid: { channel, error: result.error } };
+  }
+  if (!ordered.length) return { contacts: [], preferred: null, invalid: { channel: order[0] ?? "whatsapp", error: TABS_EMPTY } };
+  return {
+    contacts: ordered.map((channel) => ({ channel, value: (values[channel] ?? "").trim() })),
+    preferred: ordered[0],
+    invalid: null,
+  };
+}

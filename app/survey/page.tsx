@@ -1,10 +1,12 @@
 "use client";
 
+import { isStandalone } from "@/components/pwa";
+import { afterCardPath, platformOf } from "@/lib/install-guide";
 import { DemoTag } from "@/components/ui/demo-tag";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { CircleLink, TopBar } from "@/components/ui/chrome";
-import { ContactWay, contactError } from "@/components/contact-fields";
+import { ContactTabs } from "@/components/contact-fields";
 import { Icon } from "@/components/ui/icons";
 import { Mark } from "@/components/ui/mark";
 import { api, rememberToken, savedToken } from "@/lib/api";
@@ -12,7 +14,8 @@ import type { HomeResult, PersonCard } from "@/lib/connections";
 import { clearPendingMeet, firstName, readPendingMeet, rememberMeet } from "@/lib/pending-meet";
 import {
   ANSWER_MAX,
-  CHANNELS,
+  collectTabs,
+  fillOrder,
   CONSENT_TEXT,
   CONTACT_LABEL,
   NAME_LABEL,
@@ -22,9 +25,8 @@ import {
   QUESTION_HELP,
   QUESTION_PLACEHOLDER,
   type Channel,
+  type TabValues,
 } from "@/lib/survey";
-
-type Way = { channel: Channel; value: string };
 
 function forInput(channel: Channel, value: string) {
   return channel === "instagram" ? `@${value}` : value;
@@ -32,9 +34,11 @@ function forInput(channel: Channel, value: string) {
 
 export default function CardForm() {
   const [name, setName] = useState("");
-  // The first way is "Best way to reach you" (the starred one); the rest are optional extras.
-  const [ways, setWays] = useState<Way[]>([{ channel: "whatsapp", value: "" }]);
-  const [tried, setTried] = useState(false);
+  // D25: every app tab keeps its own value; all filled ones are saved. The first filled is starred.
+  const [values, setValues] = useState<TabValues>({});
+  const [order, setOrder] = useState<Channel[]>([]);
+  const [active, setActive] = useState<Channel>("whatsapp");
+  const [contactProblem, setContactProblem] = useState<{ channel: Channel; error: string } | null>(null);
   const [answer, setAnswer] = useState("");
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
@@ -52,13 +56,19 @@ export default function CardForm() {
       void api<HomeResult>(`/api/profiles/${token}`).then((result) => {
         if (result.ok && result.data.profile) {
           const stored = result.data.profile.contacts?.length ? result.data.profile.contacts : [result.data.profile.contact];
-          const next: Way[] = [];
+          const next: TabValues = {};
+          const filledOrder: Channel[] = [];
           for (const value of stored) {
             const parsed = parseContact(value);
-            if (parsed.value && !next.some((way) => way.channel === parsed.channel)) next.push({ channel: parsed.channel, value: forInput(parsed.channel, parsed.value) });
+            if (parsed.value && !next[parsed.channel]) {
+              next[parsed.channel] = forInput(parsed.channel, parsed.value);
+              filledOrder.push(parsed.channel);
+            }
           }
           setName(result.data.profile.name);
-          if (next.length) setWays(next);
+          setValues(next);
+          setOrder(filledOrder);
+          if (filledOrder.length) setActive(filledOrder[0]);
           setAnswer(result.data.profile.answer);
         } else setEditToken(null);
         setReady(true);
@@ -78,25 +88,25 @@ export default function CardForm() {
   const meetFirst = meetPerson ? firstName(meetPerson.name) : "";
   const editing = Boolean(editToken);
 
-  function setWay(index: number, patch: Partial<Way>) {
-    setWays((current) => current.map((way, i) => (i === index ? { ...way, ...patch, ...(patch.channel ? { value: "" } : {}) } : way)));
-  }
-
-  function addWay() {
-    const free = CHANNELS.find((option) => !ways.some((way) => way.channel === option));
-    if (free) setWays((current) => [...current, { channel: free, value: "" }]);
+  function setValue(channel: Channel, value: string) {
+    setValues((current) => ({ ...current, [channel]: value }));
+    setOrder((current) => fillOrder(current, channel, value));
+    if (contactProblem?.channel === channel) setContactProblem(null);
   }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
-    setTried(true);
-    // Extra ways left empty are just skipped; a bad value stops the save with its own message.
-    const filled = ways.filter((way, index) => index === 0 || way.value.trim());
-    if (filled.some((way) => contactError(way.channel, way.value))) return;
+    // Empty tabs are skipped; a bad value switches to its tab and shows the error there.
+    const collected = collectTabs(values, order);
+    if (collected.invalid) {
+      setActive(collected.invalid.channel);
+      setContactProblem(collected.invalid);
+      return;
+    }
+    setContactProblem(null);
     setSaving(true);
-    const contacts = filled.map((way) => ({ channel: way.channel, value: way.value }));
-    const body = { name, contacts, preferred: ways[0].channel, answer, consent };
+    const body = { name, contacts: collected.contacts, preferred: collected.preferred, answer, consent };
     const result = editing
       ? await api<{ profile?: unknown }>(`/api/profiles/${editToken}`, { method: "PATCH", body })
       : await api<{ token?: string }>("/api/profiles", { method: "POST", body });
@@ -118,7 +128,9 @@ export default function CardForm() {
     rememberToken(token);
     const pending = meetId || readPendingMeet(new URLSearchParams(window.location.search).get("meet"));
     clearPendingMeet();
-    window.location.assign(pending ? `/meet/${encodeURIComponent(pending)}?saved=1` : `/m/${token}?new=1`);
+    // D24: a phone in the browser sees the "Add Afterflow to your home screen" step before Your people.
+    const next = afterCardPath(token, { standalone: isStandalone(), platform: platformOf(navigator.userAgent, navigator.maxTouchPoints) });
+    window.location.assign(pending ? `/meet/${encodeURIComponent(pending)}?saved=1` : next);
   }
 
   const back = editing ? `/m/${editToken}/card` : meetId ? `/meet/${encodeURIComponent(meetId)}` : "/";
@@ -160,50 +172,14 @@ export default function CardForm() {
           <span className="field-label" aria-hidden="true">
             {CONTACT_LABEL}
           </span>
-          <ContactWay
+          <ContactTabs
             id="contact"
-            channel={ways[0].channel}
-            value={ways[0].value}
-            taken={ways.slice(1).map((way) => way.channel)}
-            onChannel={(channel) => setWay(0, { channel })}
-            onValue={(value) => setWay(0, { value })}
-            showError={tried}
+            values={values}
+            active={active}
+            onActive={setActive}
+            onValue={setValue}
+            error={contactProblem?.channel === active ? contactProblem.error : ""}
           />
-          {ways.slice(1).map((way, offset) => {
-            const index = offset + 1;
-            return (
-              <div key={index} className="mt-3 border-t-[0.5px] border-line pt-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px] font-semibold text-muted">Another way · optional</span>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-plain !h-8 !px-2"
-                    onClick={() => setWays((current) => current.filter((_, i) => i !== index))}
-                    aria-label={`Remove this way to reach you`}
-                  >
-                    Remove
-                  </button>
-                </div>
-                <ContactWay
-                  id={`contact-${index + 1}`}
-                  channel={way.channel}
-                  value={way.value}
-                  taken={ways.filter((_, i) => i !== index).map((other) => other.channel)}
-                  onChannel={(channel) => setWay(index, { channel })}
-                  onValue={(value) => setWay(index, { value })}
-                  showError={tried && Boolean(way.value.trim())}
-                  autoFocus
-                />
-              </div>
-            );
-          })}
-          {ways.length < CHANNELS.length ? (
-            <button type="button" className="mt-2 flex min-h-11 w-full items-center gap-2.5 border-t-[0.5px] border-line pt-2 text-left text-[16px]" onClick={addWay}>
-              <Icon name="plus" size={20} />
-              <span className="font-semibold">Add another way</span>
-              <span className="text-muted">· optional</span>
-            </button>
-          ) : null}
         </fieldset>
 
         <label htmlFor="answer" className="round mx-1 mt-[18px] mb-0.5 block text-[18px] leading-6 font-extrabold">
