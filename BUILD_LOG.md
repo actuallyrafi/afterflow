@@ -156,3 +156,12 @@ On the local branch v4-redesign. Preview only, not production. All per Tanvir.
 - Right after you make your card on a phone, "Add Afterflow to your home screen" pops up as a sheet over your first signed-in page, with that phone's steps (and Install on Android when Chrome offers it), Done and Not now. It shows once, never on a computer or when Afterflow is already on the home screen. The hint on My card stays.
 - Appearance: System, Light or Dark, on My card and as a small button on the landing. It's saved on this phone and applied before the page draws, so there's no flash, and the browser bar colour follows it.
 - 104 tests pass. 53 cross-engine checks pass in each of Chromium, Firefox and WebKit.
+
+### 23 Oct 2026, 08:54 BST — v4.1f: no focus ring when a sheet opens, calmer calendar copy
+
+On the local branch v4-redesign. Preview only, not production. All per Tanvir.
+
+- When a sheet opens (the ⋯ menu, the calendar reminder, the home-screen pop-up, Delete card and the rest), the sheet itself takes focus instead of its first button, so iPhone Safari no longer draws a blue ring on Blocked, the time chip or Done. Tab still moves through the controls with a visible ring, Escape still closes, and focus goes back to what opened the sheet. The chosen time chip shows as filled and bold.
+- The calendar sheet now says "A nudge in a few days, in your own calendar." without "You can ignore it."
+- The emails showing in an answer bubble were what the browser put into the answer box, not a bug where contacts are copied into the answer. The answer box now asks Safari not to AutoFill it.
+- 112 tests pass. 60 cross-engine checks pass in each of Chromium, Firefox and WebKit.

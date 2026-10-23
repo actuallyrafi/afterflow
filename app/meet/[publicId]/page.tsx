@@ -211,7 +211,7 @@ export default function MeetPage() {
                   role="radio"
                   aria-checked={selected}
                   className="item flush items-center"
-                  data-autofocus={selected ? true : undefined}
+                 
                   onClick={() => {
                     setChoice(option.id === live?.eventId ? undefined : option.id);
                     setPicking(false);

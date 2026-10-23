@@ -87,9 +87,9 @@ export function PersonSheet({
   }, [open]);
 
   useEffect(() => {
-    // Firmer confirms start on the safe choice.
-    if (step === "block") cancelRef.current?.focus();
-    if (step === "remove") keepRef.current?.focus();
+    // D30: a new step moves focus to the sheet itself (no unasked-for ring); Tab reaches the safe choice first.
+    if (step === "block") cancelRef.current?.closest("dialog")?.focus({ preventScroll: true });
+    if (step === "remove") keepRef.current?.closest("dialog")?.focus({ preventScroll: true });
   }, [step]);
 
   async function create() {
@@ -129,7 +129,7 @@ export function PersonSheet({
           </div>
           <div className="group">
             {onMove ? (
-              <button type="button" className="item" onClick={() => setStep("event")} disabled={busy} data-autofocus>
+              <button type="button" className="item" onClick={() => setStep("event")} disabled={busy}>
                 <Icon name="folder" />
                 <span>
                   <span className="t block">Move to event</span>
@@ -137,7 +137,7 @@ export function PersonSheet({
                 </span>
               </button>
             ) : null}
-            <button type="button" className="item" onClick={onMute} disabled={busy} data-autofocus={onMove ? undefined : true}>
+            <button type="button" className="item" onClick={onMute} disabled={busy}>
               <Icon name={muted ? "bell" : "bellOff"} />
               <span>
                 <span className="t block">{muted ? `Unmute ${first}` : `Mute ${first}`}</span>
@@ -190,7 +190,7 @@ export function PersonSheet({
                 className="item flush items-center"
                 disabled={busy}
                 onClick={() => setChoice(option.id)}
-                data-autofocus={choice === option.id ? true : undefined}
+               
               >
                 <span className="radio" aria-hidden="true" />
                 <span className="min-w-0 flex-1 text-left">

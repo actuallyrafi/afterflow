@@ -82,6 +82,7 @@ export function Sheet({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
   const [closing, setClosing] = useState(false);
 
   useEffect(() => {
@@ -89,14 +90,21 @@ export function Sheet({
     if (!dialog) return;
     if (open && !dialog.open) {
       setClosing(false);
+      // D30: remember where focus was, then focus the sheet itself, never its first control.
+      // iOS Safari draws a programmatically focused button as :focus-visible (a ring nobody asked for).
+      // Tab from here still reaches the controls (with a ring); the modal dialog keeps the trap and Escape.
+      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       dialog.showModal();
-      window.requestAnimationFrame(() => dialog.querySelector<HTMLElement>("[data-autofocus]")?.focus());
+      dialog.focus({ preventScroll: true });
     }
     if (!open && dialog.open) {
       setClosing(true);
       const timer = window.setTimeout(() => {
         dialog.close();
         setClosing(false);
+        const back = opener.current;
+        opener.current = null;
+        if (back && back.isConnected && document.activeElement !== back) back.focus({ preventScroll: true });
       }, 220);
       return () => window.clearTimeout(timer);
     }
@@ -106,6 +114,7 @@ export function Sheet({
     <dialog
       ref={ref}
       className={`sheet glass ${closing ? "closing" : ""}`}
+      tabIndex={-1}
       aria-label={label}
       aria-labelledby={labelledBy}
       aria-describedby={describedBy}

@@ -151,7 +151,7 @@ export function CalendarReminder({
           {recap ? RECAP_COPY.calRow : "Add a reminder to my calendar"}
         </h2>
         <p id="cal-sub" className="mx-auto mt-1 mb-4 max-w-[300px] text-center text-[15px] leading-[21px] text-muted">
-          {recap ? "One nudge in your own calendar to say hi to the people you met. You can ignore it." : "A nudge in a few days, in your own calendar. You can ignore it."}
+          {recap ? "One nudge in your own calendar to say hi to the people you met." : "A nudge in a few days, in your own calendar."}
         </p>
         <div className="group">
           <div className="item flush items-center">
@@ -172,7 +172,7 @@ export function CalendarReminder({
               role="radio"
               aria-checked={reminder.time === option}
               onClick={() => setTime(option)}
-              data-autofocus={reminder.time === option ? true : undefined}
+             
             >
               {option.replace(/^0/, "")}
             </button>

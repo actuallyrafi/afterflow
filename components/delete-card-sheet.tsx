@@ -110,7 +110,7 @@ export function DeleteCardSheet({ token, name, open, onClose }: { token: string;
           )}
         </button>
       </form>
-      <button type="button" className="btn btn-lg btn-plain-ink mt-1 w-full" onClick={onClose} disabled={busy} data-autofocus>
+      <button type="button" className="btn btn-lg btn-plain-ink mt-1 w-full" onClick={onClose} disabled={busy}>
         Keep my card
       </button>
     </Sheet>

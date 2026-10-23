@@ -72,7 +72,7 @@ export function EventFormSheet({
 
   // The delete confirm starts on the safe choice.
   useEffect(() => {
-    if (confirming) cancelRef.current?.focus();
+    if (confirming) cancelRef.current?.closest("dialog")?.focus({ preventScroll: true });
   }, [confirming]);
 
   useEffect(() => {
@@ -118,7 +118,7 @@ export function EventFormSheet({
               <span className="field-label">Name</span>
               <input
                 id="event-name"
-                data-autofocus
+               
                 value={name}
                 onChange={(change) => setName(change.target.value)}
                 placeholder="e.g. Climbing social"
@@ -163,7 +163,7 @@ export function EventFormSheet({
             <button type="button" className="btn btn-lg btn-hot w-full" onClick={onDelete} disabled={busy} aria-busy={busy}>
               Delete event
             </button>
-            <button ref={cancelRef} type="button" className="btn btn-lg btn-fill w-full" onClick={() => setConfirming(false)} data-autofocus>
+            <button ref={cancelRef} type="button" className="btn btn-lg btn-fill w-full" onClick={() => setConfirming(false)}>
               Cancel
             </button>
           </div>
@@ -205,7 +205,7 @@ export function StartEventSheet({
             className="item flush items-center"
             disabled={busy}
             onClick={() => onStart(event.id)}
-            data-autofocus={index === 0 ? true : undefined}
+           
           >
             <DateTile id={event.id} date={event.date} size={40} />
             <span className="min-w-0 flex-1 text-left">
@@ -214,7 +214,7 @@ export function StartEventSheet({
             </span>
           </button>
         ))}
-        <button type="button" className="item flush items-center" onClick={onNew} data-autofocus={events.length ? undefined : true}>
+        <button type="button" className="item flush items-center" onClick={onNew}>
           <span className="grid size-10 flex-none place-items-center rounded-[40%] bg-fill">
             <Icon name="plus" />
           </span>

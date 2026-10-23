@@ -43,7 +43,7 @@ test("deleting needs the confirm sheet: it says what goes, starts on Keep, and w
   assert.match(sheet, /Nobody is told/);
   // Focus starts on the safe choice.
   assert.match(sheet, /Keep my card/);
-  assert.match(sheet, /onClick=\{onClose\} disabled=\{busy\} data-autofocus>\s*Keep my card/);
+  assert.match(sheet, /onClick=\{onClose\} disabled=\{busy\}>\s*Keep my card/);
   // The red button stays off until the typed name matches, and the request carries it.
   assert.match(sheet, /disabled=\{!matches \|\| busy\}/);
   assert.match(sheet, /const matches = nameMatches\(typed, name\)/);

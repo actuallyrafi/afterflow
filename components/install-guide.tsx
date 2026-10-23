@@ -113,7 +113,7 @@ export function InstallGuideSheet({ open, onClose, myCardToken = null }: { open:
           <button
             type="button"
             className="btn btn-lg btn-ink mt-4 w-full"
-            data-autofocus
+           
             onClick={async () => {
               const outcome = await promptInstall();
               if (outcome === "accepted") onClose();
@@ -122,7 +122,7 @@ export function InstallGuideSheet({ open, onClose, myCardToken = null }: { open:
             Install
           </button>
         ) : null}
-        <button type="button" className="group mt-2.5 block min-h-[54px] w-full text-[17px] font-semibold" onClick={onClose} data-autofocus={platform === "ios" || !canPrompt ? true : undefined}>
+        <button type="button" className="group mt-2.5 block min-h-[54px] w-full text-[17px] font-semibold" onClick={onClose}>
           Done
         </button>
       </div>
@@ -217,7 +217,7 @@ export function InstallPrompt() {
         ) : null}
       </div>
       <p className="mt-2.5 px-2 text-center text-[13px] leading-[18px] text-muted">{INSTALL_STEP_SIGNED_IN}</p>
-      <button type="button" className="btn btn-lg btn-ink mt-3 w-full" data-autofocus onClick={() => close("done")}>
+      <button type="button" className="btn btn-lg btn-ink mt-3 w-full" onClick={() => close("done")}>
         Done
       </button>
       <button type="button" className="mt-1 block min-h-[48px] w-full text-[16px] font-semibold text-muted" onClick={() => close("later")}>

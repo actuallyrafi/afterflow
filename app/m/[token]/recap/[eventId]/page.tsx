@@ -163,11 +163,11 @@ export default function RecapPage() {
       <Sheet open={menu} onClose={() => setMenu(false)} label={`${event.name} recap`}>
         <div className="group">
           {data.hidden ? (
-            <button type="button" className="item w-full text-left" data-autofocus onClick={() => { setMenu(false); void setHidden(false); }}>
+            <button type="button" className="item w-full text-left" onClick={() => { setMenu(false); void setHidden(false); }}>
               <span className="t flex-1">Show this recap on Your people</span>
             </button>
           ) : (
-            <button type="button" className="item w-full text-left" data-autofocus onClick={() => { setMenu(false); void setHidden(true); }}>
+            <button type="button" className="item w-full text-left" onClick={() => { setMenu(false); void setHidden(true); }}>
               <span className="t flex-1">{RECAP_COPY.hideLabel}</span>
             </button>
           )}

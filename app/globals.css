@@ -251,7 +251,7 @@ button.item:active, a.item:active { background: color-mix(in srgb, var(--fill) 6
 .field.invalid { box-shadow: 0 0 0 2px var(--hot); }
 .seg { display: flex; gap: 4px; background: var(--fill); border-radius: 999px; padding: 3px; margin-top: 10px; }
 .seg button { flex: 1; height: 32px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--muted); transition: background-color 0.15s, color 0.15s; }
-.seg button[aria-checked="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 0.08); }
+.seg button[aria-checked="true"] { font-weight: 700; background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 0.08); }
 .answer-bubble { display: block; width: 100%; min-height: 92px; padding: 11px 14px; border-radius: 20px; border-bottom-left-radius: 8px; background: var(--panel); font-size: 16px; line-height: 22px; resize: none; color: var(--ink); outline: none; }
 .answer-bubble:focus { box-shadow: 0 0 0 2px var(--ink); }
 .check { width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; flex: none; border: 1.5px solid var(--faint); color: var(--on-ink); transition: background-color 0.15s; }
@@ -438,3 +438,6 @@ dialog.sheet.closing::backdrop { animation: fade-out 0.24s ease-in both; }
 .other-ways-body { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 0.28s var(--ease-sheet, ease), opacity 0.2s ease; }
 .other-ways-body[data-open] { grid-template-rows: 1fr; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .other-ways-body, .other-ways-chev { transition: none; } }
+
+/* D30: a sheet takes focus itself when it opens: no ring on the sheet, none on any control until Tab. */
+dialog.sheet:focus, dialog.sheet:focus-visible { outline: none; }

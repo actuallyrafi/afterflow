@@ -298,7 +298,7 @@ export default function YourPeople() {
               Your people
             </h2>
             <div className="group">
-              <Link href={`/m/${token}/settings/blocked`} className="item flush items-center" data-autofocus>
+              <Link href={`/m/${token}/settings/blocked`} className="item flush items-center">
                 <span className="t flex-1">Blocked</span>
                 <Icon name="chev" className="chev" />
               </Link>
@@ -334,7 +334,7 @@ export default function YourPeople() {
                 </li>
               ))}
             </ul>
-            <button type="button" className="btn btn-plain mt-1.5 w-full" onClick={() => setSettingsStep("menu")} data-autofocus>
+            <button type="button" className="btn btn-plain mt-1.5 w-full" onClick={() => setSettingsStep("menu")}>
               Back
             </button>
           </div>
@@ -363,7 +363,7 @@ export default function YourPeople() {
               Send feedback
               <Icon name="external" size={18} />
             </a>
-            <button type="button" className="btn btn-plain mt-1.5 w-full" onClick={() => setSettingsStep("menu")} data-autofocus>
+            <button type="button" className="btn btn-plain mt-1.5 w-full" onClick={() => setSettingsStep("menu")}>
               Back
             </button>
           </div>
@@ -477,7 +477,7 @@ function AddSomeone({ token, open, onClose }: { token: string; open: boolean; on
             <span className="sr-only">Search by name</span>
             <input
               id="search-people"
-              data-autofocus
+             
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Or search their name"

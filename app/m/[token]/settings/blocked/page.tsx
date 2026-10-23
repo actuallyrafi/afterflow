@@ -77,7 +77,7 @@ export default function BlockedList() {
               <button type="button" className="btn btn-lg btn-ink w-full" disabled={busy} aria-busy={busy} onClick={() => void unblock(asking)}>
                 Unblock
               </button>
-              <button type="button" className="btn btn-lg btn-fill w-full" data-autofocus onClick={() => setAsking(null)}>
+              <button type="button" className="btn btn-lg btn-fill w-full" onClick={() => setAsking(null)}>
                 Cancel
               </button>
             </div>

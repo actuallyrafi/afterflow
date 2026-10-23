@@ -225,9 +225,9 @@ export default function MyCard() {
                   </span>
                 </div>
                 {confirmRemove === way.channel ? (
-                  <div className="swap flex items-center gap-2 px-4 pb-3" role="group" aria-label={`Remove ${CHANNEL_LABEL[way.channel]}?`}>
+                  <div className="swap flex items-center gap-2 px-4 pb-3 outline-none" role="group" aria-label={`Remove ${CHANNEL_LABEL[way.channel]}?`} tabIndex={-1} autoFocus>
                     <span className="flex-1 text-[15px]">Remove {CHANNEL_LABEL[way.channel]}?</span>
-                    <button type="button" className="btn btn-sm btn-fill" onClick={() => setConfirmRemove(null)} autoFocus>
+                    <button type="button" className="btn btn-sm btn-fill" onClick={() => setConfirmRemove(null)}>
                       Cancel
                     </button>
                     <button type="button" className="btn btn-sm btn-hot" onClick={() => void remove(way.channel)} disabled={saving}>
@@ -402,7 +402,7 @@ export default function MyCard() {
           <PersonalQr value={url} />
         </div>
         <div className="mt-4 flex gap-2">
-          <button type="button" className="btn btn-fill flex-1" onClick={() => void copyLink()} data-autofocus>
+          <button type="button" className="btn btn-fill flex-1" onClick={() => void copyLink()}>
             <Icon name="copy" />
             Copy link
           </button>

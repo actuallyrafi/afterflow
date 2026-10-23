@@ -205,6 +205,8 @@ export default function CardForm() {
           rows={3}
           placeholder={QUESTION_PLACEHOLDER}
           aria-describedby="answer-help"
+          // D30: keep Safari's contact AutoFill (email, phone) out of the free-text answer.
+          autoComplete="off"
           className="answer-bubble"
         />
         {answer.length > 160 ? (
