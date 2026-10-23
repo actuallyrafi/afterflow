@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { CHANNEL_LABEL, CHANNEL_PLACEHOLDER, CHANNELS, FIELD_LABEL, normalizeContact, TABS_HELP, type Channel, type TabValues } from "@/lib/survey";
+import { LiquidLabel, LiquidPill, useLiquidSelect } from "./liquid";
 import { Icon, type IconName } from "./ui/icons";
 
 export const CHANNEL_ICON: Record<Channel, IconName> = { whatsapp: "whatsapp", discord: "discord", instagram: "camera", email: "mail" };
@@ -42,9 +43,17 @@ export function ContactWay({
   const [touched, setTouched] = useState(false);
   const errorId = useId();
   const error = touched || showError ? contactError(channel, value) : "";
+  // v4.1g: drag release / arrow keys pick through the controller (taps also run onClick below).
+  const seg = useLiquidSelect<HTMLDivElement>(channel, (index) => {
+    const option = CHANNELS[index];
+    if (taken.includes(option)) return;
+    onChannel(option);
+    setTouched(false);
+  });
   return (
     <div>
-      <div role="radiogroup" aria-label="App" className="seg !mt-2">
+      <div ref={seg} role="radiogroup" aria-label="App" className="seg lq !mt-2">
+        <LiquidPill variant="solid" />
         {CHANNELS.map((option) => {
           const used = taken.includes(option);
           return (
@@ -56,14 +65,15 @@ export function ContactWay({
               data-channel={option}
               aria-checked={channel === option}
               aria-disabled={used || undefined}
-              className={used ? "opacity-40" : undefined}
+              tabIndex={channel === option ? 0 : -1}
+              className={`lq-opt ${used ? "opacity-40" : ""}`}
               onClick={() => {
                 if (used) return;
                 onChannel(option);
                 setTouched(false);
               }}
             >
-              {CHANNEL_LABEL[option]}
+              <LiquidLabel>{CHANNEL_LABEL[option]}</LiquidLabel>
             </button>
           );
         })}
@@ -123,9 +133,11 @@ export function ContactTabs({
   const helpId = useId();
   const value = values[active] ?? "";
   const error = saveError || (touched.includes(active) ? contactError(active, value) : "");
+  const seg = useLiquidSelect<HTMLDivElement>(active, (index) => onActive(CHANNELS[index]));
   return (
     <div>
-      <div role="radiogroup" aria-label="App" className="seg !mt-2">
+      <div ref={seg} role="radiogroup" aria-label="App" className="seg lq !mt-2">
+        <LiquidPill variant="solid" />
         {CHANNELS.map((option) => {
           const filled = Boolean((values[option] ?? "").trim());
           return (
@@ -137,10 +149,12 @@ export function ContactTabs({
               data-filled={filled ? "" : undefined}
               aria-checked={active === option}
               aria-label={`${CHANNEL_LABEL[option]}${filled ? ", filled in" : ""}`}
-              className="relative"
+              tabIndex={active === option ? 0 : -1}
+              className="lq-opt relative"
               onClick={() => onActive(option)}
             >
-              {CHANNEL_LABEL[option]}
+              <LiquidLabel>{CHANNEL_LABEL[option]}</LiquidLabel>
+              {/* v4.1d filled dot: a direct child of the option, so it sits above the pill (z-index 2). */}
               {filled ? <span className="seg-dot" aria-hidden="true" /> : null}
             </button>
           );

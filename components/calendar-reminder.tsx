@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { LiquidLabel, LiquidPill, useLiquidSelect } from "./liquid";
 import {
   dayLabel,
   googleCalendarUrl,
@@ -87,6 +88,9 @@ export function CalendarReminder({
     [connectionId, theirName, metAt, origin, time, recap],
   );
 
+  // v4.1g: the time chips' pill. The sheet only renders them when open; the hook attaches then.
+  const timeSeg = useLiquidSelect<HTMLDivElement>(`${open}:${reminder.time}`, (index) => setTime(REMINDER_TIMES[index]));
+
   function markAdded() {
     const next = { start: reminder.start, label: savedLabel(reminder.start) };
     setSaved(next);
@@ -164,17 +168,19 @@ export function CalendarReminder({
             </span>
           </div>
         </div>
-        <div role="radiogroup" aria-label="Time" className="seg mt-3">
+        <div ref={timeSeg} role="radiogroup" aria-label="Time" className="seg lq mt-3">
+          <LiquidPill variant="solid" />
           {REMINDER_TIMES.map((option) => (
             <button
               key={option}
               type="button"
               role="radio"
+              className="lq-opt"
               aria-checked={reminder.time === option}
+              tabIndex={reminder.time === option ? 0 : -1}
               onClick={() => setTime(option)}
-             
             >
-              {option.replace(/^0/, "")}
+              <LiquidLabel>{option.replace(/^0/, "")}</LiquidLabel>
             </button>
           ))}
         </div>

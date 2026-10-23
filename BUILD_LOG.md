@@ -165,3 +165,13 @@ On the local branch v4-redesign. Preview only, not production. All per Tanvir.
 - The calendar sheet now says "A nudge in a few days, in your own calendar." without "You can ignore it."
 - The emails showing in an answer bubble were what the browser put into the answer box, not a bug where contacts are copied into the answer. The answer box now asks Safari not to AutoFill it.
 - 112 tests pass. 60 cross-engine checks pass in each of Chromium, Firefox and WebKit.
+
+### 23 Oct 2026, 09:21 BST — v4.1g: liquid-glass selectors
+
+On the local branch v4-redesign. Preview only, not production. Pixel's motion spec (design-spec-v41g-motion), per Tanvir.
+
+- The tab bar and every segmented control (the app picker on Edit my card, the contact tabs on Make your card, the calendar time chips and Appearance) now have one glass pill that glides to the option you pick. It springs, stretches a little on the way, dips when pressed and can be dragged. The label under it fades to full ink as the pill arrives.
+- Appearance changes colour 200ms after you tap, once the pill has landed.
+- Reduced motion: a short slide with no stretch. Reduced transparency, high contrast, forced colours and no JavaScript each get a plain fallback. Only transform and opacity animate.
+- Segment buttons are 38px (a 44px target with the control's padding). Tabs are at least 50px. The contact tabs still show their filled dots, and tapping never draws a focus ring. Arrow keys, Home and End move through the options.
+- 120 tests pass. 75 cross-engine checks pass in each of Chromium, Firefox and WebKit.

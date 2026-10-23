@@ -250,7 +250,7 @@ button.item:active, a.item:active { background: color-mix(in srgb, var(--fill) 6
 .field:focus-within { box-shadow: 0 0 0 2px var(--ink); }
 .field.invalid { box-shadow: 0 0 0 2px var(--hot); }
 .seg { display: flex; gap: 4px; background: var(--fill); border-radius: 999px; padding: 3px; margin-top: 10px; }
-.seg button { flex: 1; height: 32px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--muted); transition: background-color 0.15s, color 0.15s; }
+.seg button { flex: 1; height: 38px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--muted); }
 .seg button[aria-checked="true"] { font-weight: 700; background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 0.08); }
 .answer-bubble { display: block; width: 100%; min-height: 92px; padding: 11px 14px; border-radius: 20px; border-bottom-left-radius: 8px; background: var(--panel); font-size: 16px; line-height: 22px; resize: none; color: var(--ink); outline: none; }
 .answer-bubble:focus { box-shadow: 0 0 0 2px var(--ink); }
@@ -328,15 +328,13 @@ dialog.sheet.closing::backdrop { animation: fade-out 0.24s ease-in both; }
 .tabbar[data-hidden] { opacity: 0; transform: translateY(12px); pointer-events: none; }
 .tab {
   position: relative; flex: 1; min-width: 0; border-radius: 26px; display: grid; place-items: center; align-content: center; gap: 3px;
-  font: 700 11px/1 var(--font-text); color: var(--muted); transition: background-color 0.22s var(--ease-sheet), color 0.22s, transform 0.12s;
+  font: 700 11px/1 var(--font-text); color: var(--muted); min-height: 50px;
 }
 .tab .i { width: 23px; height: 23px; }
-.tab[aria-current="page"] { background: var(--platter); color: var(--ink); }
-.tab:active { transform: scale(0.96); }
+.tab[aria-current="page"] { color: var(--ink); }
 .tab:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; border-radius: 26px; }
 .with-tabbar:has(> .tabbar) .shell { padding-bottom: calc(64px + 8px + env(safe-area-inset-bottom) + 16px); }
 .with-tabbar:has(> .tabbar) .toast { bottom: calc(env(safe-area-inset-bottom) + 84px); }
-@media (prefers-reduced-motion: reduce) { .tab:active { transform: none; } }
 @media (prefers-contrast: more) { .tab[aria-current="page"] { background: var(--ink); color: var(--on-ink); } }
 
 /* Live: "I'm at an event now" (spec §2.4). */
@@ -441,3 +439,116 @@ dialog.sheet.closing::backdrop { animation: fade-out 0.24s ease-in both; }
 
 /* D30: a sheet takes focus itself when it opens: no ring on the sheet, none on any control until Tab. */
 dialog.sheet:focus, dialog.sheet:focus-visible { outline: none; }
+
+
+/* Afterflow v4.1g: liquid-glass sliding selectors. Tokens + component CSS (drop into app/globals.css). */
+:root {
+  /* Motion */
+  --motion-spring-pill: linear(0, 0.032, 0.111, 0.218, 0.336, 0.454, 0.566, 0.667, 0.754, 0.827, 0.886, 0.933, 0.968, 0.993, 1.01, 1.021, 1.027, 1.03, 1.029, 1.028, 1.025, 1.021, 1.018, 1.014, 1.011, 1.008, 1.006, 1.004, 1.003, 1.001, 1, 1, 1);
+  --motion-spring-pill-dur: 380ms;                    /* stiffness 520 · damping 34 · mass 1 */
+  --motion-spring-pill-fallback: cubic-bezier(0.32, 1.18, 0.42, 1);
+  --motion-press-in: 90ms cubic-bezier(0.2, 0, 0.2, 1);
+  --motion-press-out: 200ms cubic-bezier(0.3, 1.4, 0.5, 1);
+  --motion-reduced: 120ms cubic-bezier(0.215, 0.61, 0.355, 1); /* ease-out cubic, no overshoot */
+  --press-scale: 0.96;
+
+  /* Lens inside glass (tab bar): no backdrop-filter, fills only */
+  --pill-lens-bg-light: linear-gradient(180deg, rgb(22 24 29 / 0.085), rgb(22 24 29 / 0.055));
+  --pill-lens-spec-light: radial-gradient(120% 80% at 50% -10%, rgb(255 255 255 / 0.85), rgb(255 255 255 / 0) 58%);
+  --pill-lens-shadow-light: inset 0 1px 0 rgb(255 255 255 / 0.9), inset 0 0 0 0.5px rgb(22 24 29 / 0.07),
+    inset 0 -1px 1.5px rgb(22 24 29 / 0.05), 0 1px 2px rgb(22 24 29 / 0.06), 0 4px 12px rgb(22 24 29 / 0.06);
+  /* Solid platter (segmented controls on opaque panels) */
+  --pill-solid-bg-light: linear-gradient(180deg, #ffffff, #fafaf9);
+  --pill-solid-shadow-light: inset 0 1px 0 #ffffff, inset 0 0 0 0.5px rgb(22 24 29 / 0.07),
+    0 1px 2px rgb(22 24 29 / 0.1), 0 3px 8px rgb(22 24 29 / 0.06);
+
+  --pill-lens-bg: var(--pill-lens-bg-light);
+  --pill-lens-spec: var(--pill-lens-spec-light);
+  --pill-lens-shadow: var(--pill-lens-shadow-light);
+  --pill-solid-bg: var(--pill-solid-bg-light);
+  --pill-solid-shadow: var(--pill-solid-shadow-light);
+}
+:root[data-theme="dark"], [data-theme="dark"] {
+  --pill-lens-bg-dark: linear-gradient(180deg, rgb(255 255 255 / 0.15), rgb(255 255 255 / 0.085));
+  --pill-lens-spec-dark: radial-gradient(120% 80% at 50% -10%, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0) 58%);
+  --pill-lens-shadow-dark: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 0 0 0.5px rgb(255 255 255 / 0.08),
+    0 1px 2px rgb(0 0 0 / 0.35), 0 4px 12px rgb(0 0 0 / 0.25);
+  --pill-solid-bg-dark: linear-gradient(180deg, #3a3d46, #32353d);
+  --pill-solid-shadow-dark: inset 0 1px 0 rgb(255 255 255 / 0.1), inset 0 0 0 0.5px rgb(255 255 255 / 0.06),
+    0 1px 2px rgb(0 0 0 / 0.4), 0 3px 8px rgb(0 0 0 / 0.25);
+  --pill-lens-bg: var(--pill-lens-bg-dark);
+  --pill-lens-spec: var(--pill-lens-spec-dark);
+  --pill-lens-shadow: var(--pill-lens-shadow-dark);
+  --pill-solid-bg: var(--pill-solid-bg-dark);
+  --pill-solid-shadow: var(--pill-solid-shadow-dark);
+}
+
+/* Structure */
+.lq { position: relative; isolation: isolate; touch-action: pan-y; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+.lq-pill { position: absolute; left: 0; top: var(--lq-inset, 3px); bottom: var(--lq-inset, 3px); z-index: 0; pointer-events: none; border-radius: var(--lq-radius, 999px); }
+.lq-press, .lq-lens { display: block; width: 100%; height: 100%; border-radius: inherit; }
+.lq-press { transition: transform var(--motion-press-out); }
+.lq.is-pressing-current .lq-press { transform: scale(var(--press-scale)); transition: transform var(--motion-press-in); }
+.lq.is-dragging .lq-press { transform: scale(1.02); }
+.lq-opt { position: relative; z-index: 1; display: grid; place-items: center; background: transparent !important; box-shadow: none !important; transition: none !important; }
+.lq-lbl { grid-area: 1 / 1; display: inline-flex; flex-direction: inherit; align-items: center; justify-content: center; gap: inherit; transition: transform var(--motion-press-out); }
+.lq-on { opacity: 0; color: var(--ink); }
+.lq-opt.is-pressed .lq-lbl { transform: scale(var(--press-scale)); transition: transform var(--motion-press-in); }
+.lq-opt:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; z-index: 2; }
+
+/* Lens (in a glass bar) vs solid platter (on an opaque panel) */
+.lq-lens--lens { background: var(--pill-lens-spec), var(--pill-lens-bg); box-shadow: var(--pill-lens-shadow); }
+.lq-lens--solid { background: var(--pill-solid-bg); box-shadow: var(--pill-solid-shadow); }
+
+/* Instances */
+.tabbar.lq { --lq-inset: 6px; --lq-radius: 26px; }
+.tabbar.lq .tab[aria-current="page"] { background: transparent; }
+.seg.lq { --lq-inset: 3px; --lq-radius: 999px; }
+.seg.lq button[aria-checked="true"] { background: transparent; box-shadow: none; }
+.seg.lq button { min-height: 38px; }                                 /* visual 38 + 3+3 padding = a 44px target */
+
+/* Fallbacks */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .lq-lens--lens { background: var(--platter); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6), inset 0 0 0 0.5px var(--line); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .lq-lens--lens { background: var(--platter); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6), inset 0 0 0 0.5px var(--line); }
+}
+[data-lowfx] .lq-lens--lens, [data-lowfx] .lq-lens--solid { background: var(--platter); box-shadow: inset 0 0 0 0.5px var(--line); }
+[data-lowfx] .seg .lq-lens--solid { background: var(--panel); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+@media (prefers-contrast: more) {
+  .lq-lens--lens, .lq-lens--solid { background: var(--ink); box-shadow: none; }
+  .lq-on { color: var(--on-ink); }
+}
+@media (forced-colors: active) {
+  .lq-lens--lens, .lq-lens--solid { forced-color-adjust: none; background: Highlight; box-shadow: none; }
+  .lq-on { forced-color-adjust: none; color: HighlightText; }
+  .lq-opt:focus-visible { outline: 2px solid CanvasText; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lq-press, .lq.is-pressing-current .lq-press, .lq-lbl, .lq-opt.is-pressed .lq-lbl { transform: none !important; transition: none !important; }
+}
+/* CSS-only fallback (no JS yet, e.g. first paint): the pill jumps; JS takes over on hydrate. */
+.lq:not(.lq-ready) .lq-pill { display: none; }
+.lq:not(.lq-ready) [aria-current="page"], .lq:not(.lq-ready) [aria-checked="true"] { background: var(--platter) !important; }
+
+/* Afterflow instance details (spec §6.3). */
+@supports not (transition-timing-function: linear(0, 1)) {
+  :root { --motion-spring-pill: var(--motion-spring-pill-fallback); --motion-spring-pill-dur: 360ms; }
+}
+.tabbar.lq { position: fixed; } /* .lq's position: relative must not un-float the bar */
+.tab .lq-lbl { flex-direction: column; gap: 3px; }
+.lq-on { font-weight: 700; }
+/* The ink copy carries the selected look; the base copy stays muted so the selected option doesn't turn
+   ink before the pill reaches it. */
+.seg.lq button[aria-checked="true"], .tabbar.lq .tab[aria-current="page"] { font-weight: inherit; color: var(--muted); }
+.seg.lq button[aria-checked="true"] { font-weight: 600; }
+/* The pill never shows a focus ring on tap: only keyboard focus (Tab, arrows) draws one. */
+.lq-opt:focus:not(:focus-visible) { outline: none; }
+.seg.lq .seg-dot { z-index: 2; }
+.seg.lq button[aria-checked="true"] .seg-dot { box-shadow: 0 0 0 1.5px #ffffff; }
+:root[data-theme="dark"] .seg.lq button[aria-checked="true"] .seg-dot { box-shadow: 0 0 0 1.5px #3a3d46; }
+/* No-JS / pre-hydration: only one copy of each label shows (ink on the selected option). */
+.lq:not(.lq-ready) .lq-on { opacity: 0; }
+.lq:not(.lq-ready) [aria-current="page"] .lq-on, .lq:not(.lq-ready) [aria-checked="true"] .lq-on { opacity: 1; }
+.lq:not(.lq-ready) [aria-current="page"] .lq-lbl:not(.lq-on), .lq:not(.lq-ready) [aria-checked="true"] .lq-lbl:not(.lq-on) { opacity: 0; }

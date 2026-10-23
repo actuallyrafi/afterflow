@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { TABS, tabFor } from "@/lib/nav";
+import { LiquidLabel, LiquidPill, useLiquidSelect } from "./liquid";
 import { Icon } from "./ui/icons";
 
 function isTextField(target: EventTarget | null): boolean {
@@ -54,21 +55,34 @@ function useKeyboardOpen(): boolean {
  */
 export function BottomNav({ token }: { token: string }) {
   const pathname = usePathname() ?? "";
+  const router = useRouter();
   const keyboard = useKeyboardOpen();
   const current = tabFor(pathname, token);
+  // v4.1g: the liquid pill. The hook runs before the early return (rules of hooks); the controller
+  // moves the pill at once on tap or drag release and onPick navigates.
+  const ref = useLiquidSelect<HTMLElement>(current?.key, (index) => router.push(`/m/${token}${TABS[index].path}`));
   if (!current?.exact) return null;
   return (
-    <nav className="tabbar glass" aria-label="Main" data-hidden={keyboard ? "" : undefined} aria-hidden={keyboard || undefined}>
+    <nav ref={ref} className="tabbar glass lq" aria-label="Main" data-hidden={keyboard ? "" : undefined} aria-hidden={keyboard || undefined}>
+      <LiquidPill variant="lens" />
       {TABS.map((tab) => (
         <Link
           key={tab.key}
           href={`/m/${token}${tab.path}`}
-          className="tab"
+          className="tab lq-opt"
           aria-current={current.key === tab.key ? "page" : undefined}
           tabIndex={keyboard ? -1 : undefined}
+          onClick={(event) => {
+            // A plain tap is handled by the controller (pill first, then onPick navigates once);
+            // modified clicks (new tab/window) keep the browser's behaviour.
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+            event.preventDefault();
+          }}
         >
-          <Icon name={tab.icon} />
-          <span>{tab.label}</span>
+          <LiquidLabel>
+            <Icon name={tab.icon} />
+            <span>{tab.label}</span>
+          </LiquidLabel>
         </Link>
       ))}
     </nav>
