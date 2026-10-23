@@ -9,8 +9,8 @@ import { Icon } from "./ui/icons";
 export type EventFilter = string;
 
 export function filterLabel(filter: EventFilter, events: EventSummary[]): string {
-  if (filter === "none") return "Not in an event";
-  return events.find((event) => event.id === filter)?.label ?? "All people";
+  if (filter === "none") return "No event";
+  return events.find((event) => event.id === filter)?.label ?? "All events";
 }
 
 /**
@@ -22,9 +22,12 @@ export function EventMenu({
   events,
   value,
   onChange,
+  showNone = true,
 }: {
   token: string;
   events: EventSummary[];
+  /** "No event" is only listed if anyone is in it. */
+  showNone?: boolean;
   value: EventFilter;
   onChange: (next: EventFilter) => void;
 }) {
@@ -96,18 +99,18 @@ export function EventMenu({
       </button>
       {open ? (
         <div id={menuId} role="menu" aria-label="Show people from" className="menu glass">
-          <Option id="all" label="All people" />
+          <Option id="all" label="All events" />
           {events.length ? <hr /> : null}
           {events.map((event) => (
             <Option key={event.id} id={event.id} label={event.label} />
           ))}
-          {events.length ? <Option id="none" label="Not in an event" /> : null}
+          {showNone && events.length ? <Option id="none" label="No event" /> : null}
           <hr />
           <Link role="menuitem" href={`/m/${token}/events`} onClick={() => setOpen(false)}>
             <span className="tick">
               <Icon name="calendar" size={18} />
             </span>
-            <span className="flex-1">{events.length ? "Manage events" : "Make an event"}</span>
+            <span className="flex-1">Manage events</span>
           </Link>
         </div>
       ) : null}

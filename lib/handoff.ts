@@ -27,7 +27,7 @@ export type Handoff = {
   copyFirst: boolean;
 };
 
-export function handoffFor(contact: string, theirName: string, message: string, flags = FLAGS): Handoff {
+export function handoffFor(contact: string, theirName: string, message: string, flags = FLAGS, myName = ""): Handoff {
   const { channel, value } = parseContact(contact);
   const first = firstOf(theirName);
   if (channel === "whatsapp") {
@@ -51,7 +51,7 @@ export function handoffFor(contact: string, theirName: string, message: string, 
       display: `@${value}`,
       label: "Open Instagram",
       // Their profile: Message is one tap from there, and we copy the hi first.
-      href: `https://www.instagram.com/${encodeURIComponent(value)}/`,
+      href: `https://instagram.com/${encodeURIComponent(value)}`,
       copyFirst: true,
     };
   }
@@ -59,7 +59,7 @@ export function handoffFor(contact: string, theirName: string, message: string, 
     channel,
     display: value,
     label: `Email ${first}`,
-    href: `mailto:${value}?subject=${encodeURIComponent("Hi from the Grok Bot hackathon")}&body=${encodeURIComponent(message)}`,
+    href: `mailto:${value}?subject=${encodeURIComponent(myName ? `Hi from ${firstOf(myName)}` : "Hi from the Grok Bot hackathon")}&body=${encodeURIComponent(message)}`,
     copyFirst: false,
   };
 }
@@ -72,8 +72,9 @@ export type HiPlan = {
 };
 
 /**
- * Say hi where it's easiest for both of you. If you share an app, that one leads
- * ("You both use WhatsApp"). Otherwise their own order wins, so you reach them on their app.
+ * Say hi where it's easiest for both of you: 1) an app you both use (the first one in *their*
+ * order), 2) their starred method, 3) the rest in their order. My own star never reorders theirs.
+ * Discord counts as shared even while its deep link is off.
  */
 export function planHandoff(
   theirContacts: string[],
@@ -81,6 +82,7 @@ export function planHandoff(
   theirName: string,
   message: string,
   flags = FLAGS,
+  myName = "",
 ): HiPlan {
   const theirs = theirContacts.filter((value) => typeof value === "string" && value.trim());
   const mine = new Set(myContacts.map((value) => parseContact(value).channel));
@@ -88,6 +90,6 @@ export function planHandoff(
   const ordered = sharedIndex > 0 ? [theirs[sharedIndex], ...theirs.filter((_, index) => index !== sharedIndex)] : theirs;
   return {
     shared: sharedIndex >= 0 ? parseContact(theirs[sharedIndex]).channel : null,
-    options: ordered.map((value) => handoffFor(value, theirName, message, flags)),
+    options: ordered.map((value) => handoffFor(value, theirName, message, flags, myName)),
   };
 }

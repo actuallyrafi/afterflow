@@ -24,16 +24,50 @@ export default function YourPeople() {
   const [filter, setFilter] = useState<EventFilter>("all");
   const { toast, show, hide } = useToast();
 
-  // The event filter lives in the URL (?event=…), so the Events tab can link straight to one.
+  const [chosen, setChosen] = useState(false);
+  const [settingsStep, setSettingsStep] = useState<"menu" | "privacy" | "help">("menu");
+  const filterKey = `afterflow.filter.${token}`;
+
+  // The filter lasts for the session (resets on the next launch). ?event=… from the Events tab wins.
   useEffect(() => {
-    const value = new URLSearchParams(window.location.search).get("event");
-    if (value) setFilter(value);
-  }, []);
+    const fromUrl = new URLSearchParams(window.location.search).get("event");
+    let fromSession: string | null = null;
+    try {
+      fromSession = sessionStorage.getItem(filterKey);
+    } catch {
+      // No storage: start at All events.
+    }
+    const value = fromUrl || fromSession;
+    if (value) {
+      setFilter(value);
+      setChosen(true);
+    }
+  }, [filterKey]);
+
+  // While you're at an event, Your people opens on it (unless you picked something this session).
+  const liveId = home?.events.current?.eventId ?? null;
+  useEffect(() => {
+    if (liveId && !chosen) setFilter(liveId);
+  }, [liveId, chosen]);
 
   function chooseFilter(next: EventFilter) {
     setFilter(next);
+    setChosen(true);
+    try {
+      sessionStorage.setItem(filterKey, next);
+    } catch {
+      // Fine.
+    }
     const url = next === "all" ? `/m/${token}` : `/m/${token}?event=${encodeURIComponent(next)}`;
     window.history.replaceState(null, "", url);
+  }
+
+  async function turnOff() {
+    const result = await api(`/api/profiles/${token}/events`, { method: "POST", body: { action: "end" } });
+    if (result.ok) {
+      show("Stopped. New people won't be filed.");
+      await load();
+    } else show("Couldn't turn it off. Try again.");
   }
 
   const load = useCallback(async () => {
@@ -99,29 +133,47 @@ export default function YourPeople() {
 
   return (
     <main className="shell page-top pb-28">
-      <TopBar right={<CircleButton icon="more" label="Your people settings" onClick={() => setSettings(true)} />} />
+      <TopBar
+        wideRight
+        right={
+          <>
+            <CircleButton icon="plus" label="Add someone" onClick={() => setAdding(true)} />
+            <CircleButton
+              icon="more"
+              label="Your people settings"
+              onClick={() => {
+                setSettingsStep("menu");
+                setSettings(true);
+              }}
+            />
+          </>
+        }
+      />
 
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="t-display">Your people</h1>
-        <button type="button" aria-label="Add someone" className="btn btn-fill btn-icon bg-panel" onClick={() => setAdding(true)}>
-          <Icon name="plus" size={22} />
-        </button>
-      </div>
-      <div className="mt-2.5 mb-[18px] flex flex-wrap items-center gap-2">
-        {home ? <EventMenu token={token} events={events} value={activeFilter} onChange={chooseFilter} /> : <div className="skeleton h-[34px] w-40 rounded-full" />}
+      <h1 className="t-display">Your people</h1>
+      <div className="mt-3 mb-3 flex flex-wrap items-center gap-2">
+        {home ? (
+          <EventMenu token={token} events={events} showNone={!home.events.unfiled.empty} value={activeFilter} onChange={chooseFilter} />
+        ) : (
+          <div className="skeleton h-[38px] w-36 rounded-full" />
+        )}
+        {activeFilter !== "all" && activeFilter !== "none" ? (
+          <Link href={`/m/${token}/events?edit=${encodeURIComponent(activeFilter)}`} className="btn btn-sm btn-plain-ink">
+            Edit event
+          </Link>
+        ) : null}
         {me?.isDemo ? <DemoTag /> : null}
       </div>
       {current ? (
-        <Link href={`/m/${token}/events`} className="mb-3 flex items-center gap-2.5 rounded-[18px] bg-panel py-2.5 pr-3 pl-3.5 text-[14px] leading-5">
-          <span className="hue-3 app-chip !size-7">
-            <Icon name="pin" />
-          </span>
+        <div role="status" className="live mb-3">
+          <span className="dot" aria-hidden="true" />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-semibold">At {current.label}</span>
-            <span className="block text-muted">New people are filed here for you</span>
+            At {current.name} now · new people go here
           </span>
-          <Icon name="chev" className="chev" />
-        </Link>
+          <button type="button" className="btn btn-sm" onClick={() => void turnOff()}>
+            Turn off
+          </button>
+        </div>
       ) : null}
 
       {!home ? (
@@ -174,14 +226,19 @@ export default function YourPeople() {
 
       {home && home.connections.length && !shown.length ? (
         <div className="panel px-5 py-7 text-center">
-          <p className="round text-[20px] leading-6 font-extrabold">No one here yet.</p>
-          <p className="mx-auto mt-1.5 max-w-[290px] text-[15px] leading-[21px] text-muted">
-            {activeFilter === "none"
-              ? "Everyone you met is in an event."
-              : `Open someone's page and choose ${filterLabel(activeFilter, events)} under Event.`}
-          </p>
+          {activeFilter === "none" ? (
+            <p className="mx-auto max-w-[290px] text-[15px] leading-[21px] text-muted">Everyone&apos;s filed under an event.</p>
+          ) : (
+            <>
+              <p className="round text-[20px] leading-6 font-extrabold">Nobody here yet</p>
+              <p className="mx-auto mt-1.5 max-w-[290px] text-[15px] leading-[21px] text-muted">
+                When you meet someone at {events.find((event) => event.id === activeFilter)?.name ?? filterLabel(activeFilter, events)},
+                they&apos;ll show up here.
+              </p>
+            </>
+          )}
           <button type="button" className="btn btn-fill mt-4" onClick={() => chooseFilter("all")}>
-            Show all people
+            Show all events
           </button>
         </div>
       ) : null}
@@ -200,19 +257,84 @@ export default function YourPeople() {
       ) : null}
 
       <Sheet open={settings} onClose={() => setSettings(false)} labelledBy="settings-title">
-        <h2 id="settings-title" className="round mb-3.5 text-center text-[20px] font-black">
-          Your people
-        </h2>
-        <div className="group">
-          <Link href={`/m/${token}/settings/blocked`} className="item flush items-center" data-autofocus>
-            <span className="t flex-1">Blocked</span>
-            <Icon name="chev" className="chev" />
-          </Link>
-        </div>
-        <button type="button" className="group mt-2.5 block min-h-[54px] w-full text-[17px] font-semibold" onClick={() => setSettings(false)}>
-          Cancel
-        </button>
-        <p className="mt-3 text-center text-[12px] text-muted">Only you see your list.</p>
+        {settingsStep === "menu" ? (
+          <div className="swap">
+            <h2 id="settings-title" className="round mb-3.5 text-center text-[20px] font-black">
+              Your people
+            </h2>
+            <div className="group">
+              <Link href={`/m/${token}/settings/blocked`} className="item flush items-center" data-autofocus>
+                <span className="t flex-1">Blocked</span>
+                <Icon name="chev" className="chev" />
+              </Link>
+              <button type="button" className="item flush items-center" onClick={() => setSettingsStep("privacy")}>
+                <span className="t flex-1">Privacy and your data</span>
+                <Icon name="chev" className="chev" />
+              </button>
+              <button type="button" className="item flush items-center" onClick={() => setSettingsStep("help")}>
+                <span className="t flex-1">Help and feedback</span>
+                <Icon name="chev" className="chev" />
+              </button>
+            </div>
+            <button type="button" className="group mt-2.5 block min-h-[54px] w-full text-[17px] font-semibold" onClick={() => setSettings(false)}>
+              Cancel
+            </button>
+            <p className="mt-3 text-center text-[12px] text-muted">Only you see your list.</p>
+          </div>
+        ) : settingsStep === "privacy" ? (
+          <div className="swap">
+            <h2 id="settings-title" className="round mb-3 text-center text-[20px] font-black">
+              Privacy and your data
+            </h2>
+            <ul className="group">
+              {[
+                "Your card: your name, your answer and the ways to reach you.",
+                "Your contacts only show to people you both said you met.",
+                "Your notes, events, mutes and Talked again marks are only yours.",
+                "No feed, no public profile, no counts. Afterflow doesn't read your chats.",
+              ].map((line) => (
+                <li key={line} className="item flush">
+                  <span className="text-[15px] leading-5">{line}</span>
+                </li>
+              ))}
+            </ul>
+            <Link href={`/m/${token}/delete`} className="group mt-2.5 flex min-h-[54px] w-full items-center justify-center text-[17px] font-semibold text-hot">
+              Delete my card
+            </Link>
+            <button type="button" className="btn btn-plain mt-1.5 w-full" onClick={() => setSettingsStep("menu")} data-autofocus>
+              Back
+            </button>
+          </div>
+        ) : (
+          <div className="swap">
+            <h2 id="settings-title" className="round mb-3 text-center text-[20px] font-black">
+              Help and feedback
+            </h2>
+            <ul className="group">
+              {[
+                "Met someone? Show them My card, or scan theirs with your camera.",
+                "You both say yes before either of you sees how to reach the other.",
+                "Say hi opens the app you already use. Afterflow is the connector, not the chat.",
+              ].map((line) => (
+                <li key={line} className="item flush">
+                  <span className="text-[15px] leading-5">{line}</span>
+                </li>
+              ))}
+            </ul>
+            <a
+              href="https://github.com/actuallyrafi/afterflow/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group mt-2.5 flex min-h-[54px] w-full items-center justify-center gap-2 text-[17px] font-semibold"
+            >
+              Send feedback
+              <Icon name="external" size={18} />
+            </a>
+            <button type="button" className="btn btn-plain mt-1.5 w-full" onClick={() => setSettingsStep("menu")} data-autofocus>
+              Back
+            </button>
+          </div>
+        )}
       </Sheet>
 
       <AddSomeone token={token} open={adding} onClose={() => setAdding(false)} />

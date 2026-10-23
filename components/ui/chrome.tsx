@@ -10,11 +10,14 @@ export function TopBar({
   center,
   right,
   alwaysGlass = false,
+  wideRight = false,
 }: {
   left?: ReactNode;
   center?: ReactNode;
   right?: ReactNode;
   alwaysGlass?: boolean;
+  /** Room for two circles on the right (Your people: + and ⋯). */
+  wideRight?: boolean;
 }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -27,10 +30,10 @@ export function TopBar({
   const glass = alwaysGlass || scrolled;
   return (
     <header className={`topbar ${glass ? "glass" : ""}`}>
-      <div className="topbar-inner">
+      <div className={`topbar-inner ${wideRight ? "!grid-cols-[44px_1fr_auto]" : ""}`}>
         <div>{left}</div>
         <div className="flex min-w-0 justify-center">{center}</div>
-        <div className="flex justify-end">{right}</div>
+        <div className="flex justify-end gap-2.5">{right}</div>
       </div>
     </header>
   );
@@ -146,7 +149,7 @@ export function Toast({ toast, onDone }: { toast: ToastState; onDone: () => void
           onFocus={() => setHeld(true)}
           onBlur={() => setHeld(false)}
         >
-          <span className="truncate py-2">{toast.text}</span>
+          <span className="line-clamp-2 py-2">{toast.text}</span>
           {toast.undo ? (
             <button
               type="button"

@@ -26,7 +26,7 @@ test("Discord is copy-only until handoff_discord is on", () => {
 
 test("Instagram copies then opens their profile; email uses mailto with the body", () => {
   const ig = handoffFor("instagram:jonah.cooks", "Jonah", message);
-  assert.equal(ig.href, "https://www.instagram.com/jonah.cooks/");
+  assert.equal(ig.href, "https://instagram.com/jonah.cooks");
   assert.equal(ig.copyFirst, true);
   const mail = handoffFor("email:jonah@example.com", "Jonah Blake", message);
   assert.equal(mail.label, "Email Jonah");

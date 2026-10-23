@@ -30,7 +30,7 @@ test("the form takes several contact methods, at least one, and the starred one 
   const none = validateSubmission({ name: "Mira", contacts: [{ channel: "email", value: " " }], answer: "Pottery", consent: true });
   assert.equal(none.ok, false);
   const bad = validateSubmission({ name: "Mira", contacts: [{ channel: "email", value: "nope" }], answer: "Pottery", consent: true });
-  assert.ok(!bad.ok && /Email/.test(bad.error));
+  assert.ok(!bad.ok && bad.error === "Check the email address.");
   // The older single-contact body still works.
   const old = validateSubmission({ name: "Mira", channel: "discord", contact: "mira", answer: "Pottery", consent: true });
   assert.ok(old.ok && old.value.contacts?.[0] === "discord:mira");
@@ -114,7 +114,7 @@ test("Say hi: an app you both use goes first; otherwise theirs in their preferre
   const none = planHandoff(theirs, ["discord:sam"], "Mira", hi);
   assert.equal(none.shared, null);
   assert.deepEqual(none.options.map((o) => o.channel), ["instagram", "whatsapp", "email"]);
-  assert.equal(none.options[0].href, "https://www.instagram.com/mira.makes/");
+  assert.equal(none.options[0].href, "https://instagram.com/mira.makes");
   const mail = none.options[2];
   assert.ok(mail.href?.startsWith("mailto:mira@example.com?") && mail.href.includes(encodeURIComponent(hi)));
 

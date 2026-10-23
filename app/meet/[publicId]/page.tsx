@@ -4,12 +4,12 @@ import { DemoTag } from "@/components/ui/demo-tag";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CircleLink, TopBar } from "@/components/ui/chrome";
+import { CircleLink, Sheet, TopBar } from "@/components/ui/chrome";
 import { Icon } from "@/components/ui/icons";
 import { hueOf, Mark } from "@/components/ui/mark";
 import { Unavailable } from "@/components/unavailable";
 import { api, savedToken } from "@/lib/api";
-import type { PersonCard } from "@/lib/connections";
+import type { EventsView, PersonCard } from "@/lib/connections";
 import { EVENT_SHORT } from "@/lib/event";
 import { clearPendingMeet, firstName, rememberMeet } from "@/lib/pending-meet";
 
@@ -23,9 +23,18 @@ export default function MeetPage() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [events, setEvents] = useState<EventsView | null>(null);
+  // undefined: file under the event you're at now (the server decides); "" No event; or an event id.
+  const [choice, setChoice] = useState<string | undefined>(undefined);
+  const [picking, setPicking] = useState(false);
 
   useEffect(() => {
     const saved = savedToken();
+    if (saved) {
+      void api<EventsView>(`/api/profiles/${encodeURIComponent(saved)}/events`).then((result) => {
+        if (result.ok && result.data.events) setEvents(result.data);
+      });
+    }
     setToken(saved);
     setJustSaved(new URLSearchParams(window.location.search).get("saved") === "1");
     setReady(true);
@@ -46,7 +55,7 @@ export default function MeetPage() {
     setError("");
     const result = await api<{ connection: { id: string } }>(`/api/profiles/${token}/connections`, {
       method: "POST",
-      body: { publicId, note },
+      body: { publicId, note, ...(choice !== undefined ? { eventId: choice } : {}) },
     });
     if (!result.ok || !result.data.connection) {
       setError(result.data.error || "Couldn't save that. Try again.");
@@ -60,6 +69,8 @@ export default function MeetPage() {
   if (missing) return <Unavailable />;
 
   const first = person ? firstName(person.name) : "";
+  const live = events?.current ?? null;
+  const goesTo = choice === undefined ? (live?.name ?? null) : choice ? (events?.events.find((event) => event.id === choice)?.name ?? null) : "No event";
   const exit = token ? `/m/${token}` : "/";
 
   return (
@@ -74,7 +85,7 @@ export default function MeetPage() {
                 <Mark name={person.name} seed={person.publicId} size={96} onPlate />
               </div>
               <h1 className="t-display mt-3.5">{person.name}</h1>
-              <span className="pill plate mt-2">You met at {EVENT_SHORT}</span>
+              <span className="pill plate mt-2">You met at {events?.current?.name ?? EVENT_SHORT}</span>
               {person.isDemo ? (
                 <p className="mt-2">
                   <DemoTag className="on-plate !ml-0" />
@@ -118,6 +129,25 @@ export default function MeetPage() {
                     placeholder="What you talked about"
                   />
                 </label>
+                {live && goesTo ? (
+                  <div role="status" className="live mt-3">
+                    <span className="dot" aria-hidden="true" />
+                    <span className="min-w-0 flex-1">
+                      {choice === undefined ? (
+                        <>
+                          Goes in <strong>{goesTo}</strong>, because you&apos;re there now
+                        </>
+                      ) : (
+                        <>
+                          Goes in <strong>{goesTo}</strong>
+                        </>
+                      )}
+                    </span>
+                    <button type="button" className="btn btn-sm" onClick={() => setPicking(true)} aria-haspopup="dialog">
+                      Change
+                    </button>
+                  </div>
+                ) : null}
                 <p className="mx-1 mt-2.5 text-[13px] leading-[18px] text-muted">
                   {first} says yes too before either of you sees contact details.
                 </p>
@@ -162,6 +192,41 @@ export default function MeetPage() {
             </>
           )}
         </div>
+      ) : null}
+      {events ? (
+        <Sheet open={picking} onClose={() => setPicking(false)} labelledBy="goes-title" describedBy="goes-desc">
+          <h2 id="goes-title" className="round text-center text-[22px] leading-7 font-black">
+            Put {first} in…
+          </h2>
+          <p id="goes-desc" className="mx-auto mt-1 mb-4 max-w-[300px] text-center text-[14px] leading-5 text-muted">
+            Only changes your list. {first} won&apos;t see it.
+          </p>
+          <div className="group max-h-[50vh] overflow-y-auto" role="radiogroup" aria-label={`Event for ${first}`}>
+            {[...events.events.map((event) => ({ id: event.id, name: event.label })), { id: "", name: "No event" }].map((option) => {
+              const selected = (choice === undefined ? (live?.eventId ?? "") : choice) === option.id;
+              return (
+                <button
+                  key={option.id || "none"}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  className="item flush items-center"
+                  data-autofocus={selected ? true : undefined}
+                  onClick={() => {
+                    setChoice(option.id === live?.eventId ? undefined : option.id);
+                    setPicking(false);
+                  }}
+                >
+                  <span className="radio" aria-hidden="true" />
+                  <span className={`t min-w-0 flex-1 truncate text-left ${option.id ? "" : "text-muted"}`}>{option.name}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button type="button" className="group mt-2.5 block min-h-[54px] w-full text-[17px] font-semibold" onClick={() => setPicking(false)}>
+            Cancel
+          </button>
+        </Sheet>
       ) : null}
     </main>
   );

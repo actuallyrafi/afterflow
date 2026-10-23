@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { EventSummary } from "@/lib/connections";
+import { EVENT_NAME_MAX } from "@/lib/events";
 import { Sheet } from "./ui/chrome";
 import { Icon } from "./ui/icons";
 import { hueOf } from "./ui/mark";
@@ -13,26 +14,26 @@ export function londonToday(now = Date.now()): string {
   );
 }
 
+/** "22 Oct 2026", or "No date". */
 export function longDate(day: string): string {
+  if (!day) return "No date";
   return new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/London" });
 }
 
-/** "until 18:40" today, or "until tomorrow, 18:40". */
-export function untilLabel(iso: string, now = Date.now()): string {
-  const time = new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" });
-  return londonToday(Date.parse(iso)) === londonToday(now) ? `until ${time}` : `until tomorrow, ${time}`;
-}
-
-/** A small calendar tile in the event's own hue: month above, day below. */
+/** A small calendar tile in the event's own hue: month above, day below. No date: a folder. */
 export function DateTile({ id, date, size = 48 }: { id: string; date: string; size?: 40 | 48 }) {
+  const base = `hue-${hueOf(id)} hue-bg hue-fg grid flex-none place-items-center rounded-[40%] text-center leading-none`;
+  if (!date) {
+    return (
+      <span aria-hidden="true" className={base} style={{ width: size, height: size }}>
+        <Icon name="folder" />
+      </span>
+    );
+  }
   const day = new Date(`${date}T12:00:00Z`);
   const month = day.toLocaleDateString("en-GB", { month: "short", timeZone: "Europe/London" });
   return (
-    <span
-      aria-hidden="true"
-      className={`hue-${hueOf(id)} hue-bg hue-fg grid flex-none place-items-center rounded-[40%] text-center leading-none`}
-      style={{ width: size, height: size }}
-    >
+    <span aria-hidden="true" className={base} style={{ width: size, height: size }}>
       <span>
         <span className="block text-[10px] font-bold tracking-[0.04em] uppercase">{month}</span>
         <span className="round block text-[19px] font-black">{day.getUTCDate()}</span>
@@ -41,9 +42,9 @@ export function DateTile({ id, date, size = 48 }: { id: string; date: string; si
   );
 }
 
-export type EventDraft = { name: string; date: string; startNow: boolean };
+export type EventDraft = { name: string; date: string };
 
-/** New event, or edit one (rename, change the day, delete). */
+/** New event, or Edit event (rename, change the day, delete). Spec v4.1 §2.3. */
 export function EventFormSheet({
   open,
   onClose,
@@ -52,8 +53,7 @@ export function EventFormSheet({
   error,
   onSave,
   onDelete,
-  offerStartNow = true,
-  startNowDefault = false,
+  defaultDate = "",
 }: {
   open: boolean;
   onClose: () => void;
@@ -62,112 +62,109 @@ export function EventFormSheet({
   error: string;
   onSave: (draft: EventDraft) => void;
   onDelete?: () => void;
-  offerStartNow?: boolean;
-  startNowDefault?: boolean;
+  /** "New event…" from the picker is pre-dated today. */
+  defaultDate?: string;
 }) {
   const [name, setName] = useState("");
-  const [date, setDate] = useState(londonToday());
-  const [startNow, setStartNow] = useState(startNowDefault);
+  const [date, setDate] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  // The delete confirm starts on the safe choice.
+  useEffect(() => {
+    if (confirming) cancelRef.current?.focus();
+  }, [confirming]);
 
   useEffect(() => {
     if (!open) return;
     setName(event?.name ?? "");
-    setDate(event?.date ?? londonToday());
-    setStartNow(startNowDefault);
+    setDate(event ? event.date : defaultDate);
     setConfirming(false);
-  }, [open, event, startNowDefault]);
+  }, [open, event, defaultDate]);
 
   const editing = Boolean(event);
+  const tooLong = name.trim().length > EVENT_NAME_MAX;
+  const shownError = tooLong ? "Keep it under 60 characters." : error;
 
-  function submit(formEvent: FormEvent) {
-    formEvent.preventDefault();
-    onSave({ name, date, startNow: offerStartNow && !editing && startNow });
+  function submit(formEvent?: FormEvent) {
+    formEvent?.preventDefault();
+    if (!name.trim() || tooLong || busy) return;
+    onSave({ name: name.trim(), date });
   }
 
   return (
-    <Sheet open={open} onClose={onClose} labelledBy="event-form-title" role={confirming ? "alertdialog" : "dialog"} describedBy={confirming ? "delete-event-desc" : undefined}>
+    <Sheet
+      open={open}
+      onClose={onClose}
+      labelledBy="event-form-title"
+      role={confirming ? "alertdialog" : "dialog"}
+      describedBy={confirming ? "delete-event-desc" : undefined}
+    >
       {!confirming ? (
         <form className="swap" onSubmit={submit} noValidate>
-          <h2 id="event-form-title" className="round text-center text-[22px] leading-7 font-black">
-            {editing ? "Edit event" : "New event"}
-          </h2>
-          <p className="mx-auto mt-1 mb-4 max-w-[290px] text-center text-[14px] leading-5 text-muted">
-            Only you see your events. Filing someone here doesn&apos;t change anything for them.
-          </p>
+          <div className="mb-4 grid grid-cols-[1fr_auto_1fr] items-center">
+            <button type="button" className="btn btn-sm btn-plain-ink justify-self-start !px-1 font-normal" onClick={onClose}>
+              Cancel
+            </button>
+            <h2 id="event-form-title" className="round text-[19px] leading-6 font-black">
+              {editing ? "Edit event" : "New event"}
+            </h2>
+            <button type="submit" className="btn btn-sm btn-plain-ink justify-self-end !px-1 font-bold" disabled={busy || !name.trim() || tooLong} aria-busy={busy}>
+              Save
+            </button>
+          </div>
           <div className="group">
-            <label className="field !rounded-none" htmlFor="event-name">
+            <label className={`field !rounded-none ${shownError ? "invalid" : ""}`} htmlFor="event-name">
               <span className="field-label">Name</span>
               <input
                 id="event-name"
                 data-autofocus
                 value={name}
-                maxLength={60}
                 onChange={(change) => setName(change.target.value)}
-                placeholder="Grok Bot London"
+                placeholder="e.g. Climbing social"
                 autoComplete="off"
+                enterKeyHint="done"
+                aria-invalid={shownError ? true : undefined}
+                aria-describedby={shownError ? "event-error" : undefined}
               />
             </label>
             <label className="field !rounded-none border-t-[0.5px] border-line" htmlFor="event-date">
-              <span className="field-label">Day</span>
+              <span className="field-label">Date · optional</span>
               <input id="event-date" type="date" value={date} onChange={(change) => setDate(change.target.value)} />
             </label>
           </div>
-          {offerStartNow && !editing ? (
-            <div className="group mt-2.5">
-              <div className="item flush items-center">
-                <span className="flex-1">
-                  <span id="start-now-label" className="t block">
-                    I&apos;m here now
-                  </span>
-                  <span id="start-now-help" className="s block">
-                    New people go in this event for 24 hours, or until you end it.
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={startNow}
-                  aria-labelledby="start-now-label"
-                  aria-describedby="start-now-help"
-                  className="toggle"
-                  onClick={() => setStartNow((value) => !value)}
-                />
-              </div>
-            </div>
-          ) : null}
-          {error ? (
-            <p role="alert" className="mx-1 mt-3 text-[14px] text-hot">
-              {error}
+          {shownError ? (
+            <p id="event-error" role="alert" className="mx-1 mt-2.5 flex items-center gap-1.5 text-[14px] text-hot">
+              <Icon name="alert" size={16} />
+              {shownError}
             </p>
           ) : null}
-          <button type="submit" className="btn btn-lg btn-ink mt-4 w-full" disabled={busy || !name.trim()} aria-busy={busy}>
-            {busy ? "Saving…" : editing ? "Save" : "Make event"}
-          </button>
+          <p className="mx-4 mt-2.5 text-[13px] leading-[18px] text-muted">Only you see this name.</p>
           {editing && onDelete ? (
-            <button type="button" className="btn btn-plain mt-1 w-full !text-hot" onClick={() => setConfirming(true)} disabled={busy}>
-              Delete event
-            </button>
-          ) : (
-            <button type="button" className="btn btn-plain mt-1 w-full" onClick={onClose}>
-              Cancel
-            </button>
-          )}
+            <div className="group mt-5">
+              <button type="button" className="item flush items-center text-left" onClick={() => setConfirming(true)} disabled={busy}>
+                <span className="flex-1">
+                  <span className="t block text-hot">Delete event</span>
+                  <span className="s block">The people in it stay. They move to No event.</span>
+                </span>
+              </button>
+            </div>
+          ) : null}
         </form>
       ) : (
         <div className="swap pt-1">
           <h2 id="event-form-title" className="round text-center text-[22px] leading-7 font-black">
-            Delete {event?.name}?
+            Delete &ldquo;{event?.name}&rdquo;?
           </h2>
           <p id="delete-event-desc" className="mx-auto mt-2 max-w-[300px] text-center text-[15px] leading-[21px] text-muted">
-            Only the event goes. Everyone in it stays in Your people, just not in an event.
+            Only the event goes. Everyone you met there stays in Your people, under No event. Nobody is told.
           </p>
           <div className="mt-5 flex flex-col gap-2">
-            <button type="button" className="btn btn-lg btn-ink w-full" onClick={onDelete} disabled={busy} aria-busy={busy}>
+            <button type="button" className="btn btn-lg btn-hot w-full" onClick={onDelete} disabled={busy} aria-busy={busy}>
               Delete event
             </button>
-            <button type="button" className="btn btn-lg btn-fill w-full" onClick={() => setConfirming(false)} data-autofocus>
-              Keep it
+            <button ref={cancelRef} type="button" className="btn btn-lg btn-fill w-full" onClick={() => setConfirming(false)} data-autofocus>
+              Cancel
             </button>
           </div>
         </div>
@@ -176,7 +173,7 @@ export function EventFormSheet({
   );
 }
 
-/** "I'm at an event now": pick one of yours, or make a new one. */
+/** Turning on "I'm at an event now" with nothing dated today: pick one, or "New event…" (pre-dated today). */
 export function StartEventSheet({
   open,
   onClose,
@@ -198,22 +195,31 @@ export function StartEventSheet({
         Where are you?
       </h2>
       <p className="mx-auto mt-1 mb-4 max-w-[300px] text-center text-[14px] leading-5 text-muted">
-        For the next 24 hours, people you connect with are filed under it for you. End it anytime.
+        New people go into the event you pick. Turns itself off at 4am.
       </p>
-      <div className="group">
-        <button type="button" className="item flush items-center" onClick={onNew} data-autofocus>
-          <span className="app-chip hue-4">
-            <Icon name="plus" />
-          </span>
-          <span className="t flex-1">New event</span>
-        </button>
-        {events.map((event) => (
-          <button key={event.id} type="button" className="item flush items-center" disabled={busy} onClick={() => onStart(event.id)}>
+      <div className="group max-h-[50vh] overflow-y-auto">
+        {events.map((event, index) => (
+          <button
+            key={event.id}
+            type="button"
+            className="item flush items-center"
+            disabled={busy}
+            onClick={() => onStart(event.id)}
+            data-autofocus={index === 0 ? true : undefined}
+          >
             <DateTile id={event.id} date={event.date} size={40} />
-            <span className="t min-w-0 flex-1 truncate">{event.name}</span>
-            <span className="text-[13px] text-muted">{longDate(event.date)}</span>
+            <span className="min-w-0 flex-1 text-left">
+              <span className="t block truncate">{event.name}</span>
+              <span className="s block">{longDate(event.date)}</span>
+            </span>
           </button>
         ))}
+        <button type="button" className="item flush items-center" onClick={onNew} data-autofocus={events.length ? undefined : true}>
+          <span className="grid size-10 flex-none place-items-center rounded-[40%] bg-fill">
+            <Icon name="plus" />
+          </span>
+          <span className="t flex-1 text-left">New event…</span>
+        </button>
       </div>
       <button type="button" className="group mt-2.5 block min-h-[54px] w-full text-[17px] font-semibold" onClick={onClose}>
         Cancel

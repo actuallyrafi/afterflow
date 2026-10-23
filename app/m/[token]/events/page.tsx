@@ -3,15 +3,32 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { DateTile, EventFormSheet, longDate, StartEventSheet, untilLabel, type EventDraft } from "@/components/event-sheets";
-import { Toast, TopBar, useToast } from "@/components/ui/chrome";
+import { EventFormSheet, londonToday, StartEventSheet, type EventDraft } from "@/components/event-sheets";
+import { CircleButton, Toast, TopBar, useToast } from "@/components/ui/chrome";
 import { Icon } from "@/components/ui/icons";
+import { Mark } from "@/components/ui/mark";
 import { Unavailable } from "@/components/unavailable";
 import { api, rememberToken } from "@/lib/api";
-import type { EventsView, EventSummary } from "@/lib/connections";
+import type { EventEditExtras, EventMark, EventsView, EventSummary } from "@/lib/connections";
 
-function peopleLabel(n: number): string {
-  return n === 1 ? "1 person" : `${n} people`;
+type EditResponse = EventsView & EventEditExtras & { error?: string };
+
+/** "Thu 22 Oct", or "No date". */
+function shortDay(day: string): string {
+  if (!day) return "No date";
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" });
+}
+
+/** Up to three overlapping single-initial marks. Never a number, never "+N". */
+function Marks({ marks }: { marks: EventMark[] }) {
+  if (!marks.length) return null;
+  return (
+    <span className="stack flex-none" aria-hidden="true">
+      {marks.slice(0, 3).map((mark) => (
+        <Mark key={mark.seed} name={mark.name} seed={mark.seed} size={30} letters={1} />
+      ))}
+    </span>
+  );
 }
 
 export default function EventsPage() {
@@ -26,20 +43,30 @@ export default function EventsPage() {
 
   const load = useCallback(async () => {
     const result = await api<EventsView>(`/api/profiles/${token}/events`);
-    if (result.ok && result.data.events) setView(result.data);
-    else if (result.status === 404) setMissing(true);
+    if (result.ok && result.data.events) {
+      setView(result.data);
+      return result.data;
+    }
+    if (result.status === 404) setMissing(true);
+    return null;
   }, [token]);
 
   useEffect(() => {
     rememberToken(token);
-    void load();
-    if (new URLSearchParams(window.location.search).get("new") === "1") setForm({ event: null, startNow: false });
+    void load().then((loaded) => {
+      const params = new URLSearchParams(window.location.search);
+      const editId = params.get("edit");
+      const editing = editId ? loaded?.events.find((event) => event.id === editId) : undefined;
+      if (editing) setForm({ event: editing, startNow: false });
+      else if (params.get("new") === "1") setForm({ event: null, startNow: false });
+      if (editId || params.get("new")) window.history.replaceState(null, "", `/m/${token}/events`);
+    });
   }, [token, load]);
 
-  async function edit(body: Record<string, unknown>): Promise<(EventsView & { eventId?: string }) | null> {
+  async function edit(body: Record<string, unknown>): Promise<EditResponse | null> {
     setBusy(true);
     setError("");
-    const result = await api<EventsView & { eventId?: string }>(`/api/profiles/${token}/events`, { method: "POST", body });
+    const result = await api<EditResponse>(`/api/profiles/${token}/events`, { method: "POST", body });
     setBusy(false);
     if (!result.ok || !result.data.events) {
       setError(result.data.error || "Couldn't save that. Try again.");
@@ -51,18 +78,32 @@ export default function EventsPage() {
 
   async function save(draft: EventDraft) {
     if (form?.event) {
-      const done = await edit({ action: "rename", eventId: form.event.id, name: draft.name, date: draft.date });
-      if (done) {
+      if (await edit({ action: "rename", eventId: form.event.id, name: draft.name, date: draft.date })) {
         setForm(null);
-        show("Event saved");
+        show("Event saved.");
       }
       return;
     }
-    const done = await edit({ action: "create", name: draft.name, date: draft.date, startNow: draft.startNow });
-    if (done) {
+    const startNow = form?.startNow ?? false;
+    if (await edit({ action: "create", name: draft.name, date: draft.date, startNow })) {
       setForm(null);
-      show(draft.startNow ? "You're at the event. New people go there." : "Event made");
+      show(startNow ? `You're at ${draft.name}. New people go there.` : "Event added.");
     }
+  }
+
+  async function turnOn() {
+    const events = view?.events ?? [];
+    const today = events.find((event) => event.date === londonToday());
+    if (today) {
+      if (await edit({ action: "start", eventId: today.id })) show(`New people go into ${today.label}.`);
+      return;
+    }
+    if (events.length) setPicking(true);
+    else setForm({ event: null, startNow: true });
+  }
+
+  async function turnOff() {
+    if (await edit({ action: "end" })) show("Stopped. New people won't be filed.");
   }
 
   if (missing) return <Unavailable />;
@@ -72,14 +113,11 @@ export default function EventsPage() {
 
   return (
     <main className="shell page-top">
-      <TopBar />
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="t-display">Events</h1>
-        <button type="button" aria-label="New event" className="btn btn-fill btn-icon bg-panel" onClick={() => setForm({ event: null, startNow: false })}>
-          <Icon name="plus" size={22} />
-        </button>
-      </div>
-      <p className="mt-1.5 mb-[18px] text-[15px] leading-[21px] text-muted">Where you met people. Only you see these.</p>
+      <TopBar right={<CircleButton icon="plus" label="New event" onClick={() => setForm({ event: null, startNow: false })} />} />
+      <h1 className="t-display">Events</h1>
+      <p className="mt-1.5 mb-[18px] text-[15px] leading-[21px] text-muted">
+        Only you see these. They just help you remember where you met people.
+      </p>
 
       {!view ? (
         <div aria-busy="true">
@@ -88,95 +126,112 @@ export default function EventsPage() {
         </div>
       ) : (
         <>
-          {current ? (
-            <section className="panel p-4" aria-labelledby="now-title">
-              <div className="flex items-center gap-3">
-                <span className="app-chip hue-3 !size-10">
-                  <Icon name="pin" />
+          <div className="group">
+            <div className="item flush items-center">
+              <span className={`grid size-10 flex-none place-items-center rounded-[40%] ${current ? "bg-live-tint text-live-deep" : "bg-fill text-muted"}`}>
+                <Icon name="pin" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span id="now-label" className="t block">
+                  I&apos;m at an event now
                 </span>
-                <div className="min-w-0 flex-1">
-                  <h2 id="now-title" className="t-name truncate">
-                    At {current.label}
-                  </h2>
-                  <p className="text-[14px] leading-5 text-muted">New people are filed here {untilLabel(current.until)}.</p>
-                </div>
-              </div>
+                <span id="now-help" className="s block">
+                  {current ? "Turns itself off at 4am." : "New people go into the event you pick."}
+                </span>
+              </span>
               <button
                 type="button"
-                className="btn btn-fill mt-3 w-full"
+                role="switch"
+                aria-checked={Boolean(current)}
+                aria-labelledby="now-label"
+                aria-describedby="now-help"
+                className="toggle live-on"
                 disabled={busy}
-                onClick={async () => {
-                  if (await edit({ action: "end" })) show("Ended. New people won't be filed.");
-                }}
-              >
-                I&apos;ve left
-              </button>
-            </section>
-          ) : (
-            <div className="group">
-              <div className="item flush items-center">
-                <span className="flex-1">
-                  <span id="now-label" className="t block">
-                    I&apos;m at an event now
-                  </span>
-                  <span id="now-help" className="s block">
-                    For 24 hours, people you connect with are filed under it.
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={false}
-                  aria-labelledby="now-label"
-                  aria-describedby="now-help"
-                  className="toggle"
-                  onClick={() => (events.length ? setPicking(true) : setForm({ event: null, startNow: true }))}
-                />
-              </div>
+                onClick={() => void (current ? turnOff() : turnOn())}
+              />
             </div>
-          )}
+            {current ? (
+              <div className="item flush items-center">
+                <span className="min-w-0 flex-1">
+                  <span className="s block">New people go into</span>
+                  <span className="t block truncate font-bold">{current.label}</span>
+                </span>
+                <button type="button" className="btn btn-sm btn-fill" onClick={() => setPicking(true)}>
+                  Change
+                </button>
+              </div>
+            ) : null}
+          </div>
 
-          <h2 className="tag mx-4 mt-6 mb-2">Your events</h2>
           {events.length ? (
-            <ul className="group">
-              {events.map((event) => (
-                <li key={event.id} className="row !min-h-[72px] !p-0">
-                  <Link href={`/m/${token}?event=${encodeURIComponent(event.id)}`} className="flex min-w-0 flex-1 items-center gap-3.5 py-3 pl-4">
-                    <DateTile id={event.id} date={event.date} />
-                    <span className="row-main min-w-0 flex-1">
-                      <span className="t-name block truncate">{event.name}</span>
-                      <span className="row-line block">
-                        {longDate(event.date)} · {peopleLabel(event.people)}
-                        {current?.eventId === event.id ? " · Now" : ""}
+            <>
+              <h2 className="tag mx-4 mt-6 mb-2">Your events</h2>
+              <ul className="group">
+                {events.map((event) => {
+                  const here = current?.eventId === event.id;
+                  return (
+                    <li key={event.id} className="row !min-h-[68px] !p-0">
+                      <Link
+                        href={`/m/${token}?event=${encodeURIComponent(event.id)}`}
+                        className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4"
+                        aria-label={`${event.name}, ${shortDay(event.date)}${here ? ", you're here now" : event.empty ? ", nobody yet" : ""}. Show these people.`}
+                      >
+                        <span className="row-main min-w-0 flex-1">
+                          <span className="t-name block truncate">{event.name}</span>
+                          <span className="row-line block">
+                            {shortDay(event.date)}
+                            {here ? (
+                              <>
+                                {" · "}
+                                <span className="font-bold text-live-deep">you&apos;re here now</span>
+                              </>
+                            ) : event.empty ? (
+                              " · nobody yet"
+                            ) : null}
+                          </span>
+                        </span>
+                        <Marks marks={event.marks} />
+                      </Link>
+                      <button
+                        type="button"
+                        className="grid size-11 flex-none place-items-center text-muted"
+                        aria-label={`Edit ${event.name}`}
+                        onClick={() => setForm({ event, startNow: false })}
+                      >
+                        <Icon name="chev" className="chev" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              {!view.unfiled.empty ? (
+                <ul className="group mt-3.5">
+                  <li className="row !min-h-[60px] !p-0">
+                    <Link href={`/m/${token}?event=none`} className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-4 pl-4">
+                      <span className="row-main min-w-0 flex-1">
+                        <span className="t-name block">No event</span>
+                        <span className="row-line block">People you haven&apos;t filed</span>
                       </span>
-                    </span>
-                  </Link>
-                  <button
-                    type="button"
-                    className="circle mr-2 flex-none text-muted"
-                    aria-label={`Edit ${event.name}`}
-                    onClick={() => setForm({ event, startNow: false })}
-                  >
-                    <Icon name="more" />
-                  </button>
-                </li>
-              ))}
-            </ul>
+                      <Marks marks={view.unfiled.marks} />
+                      <Icon name="chev" className="chev" />
+                    </Link>
+                  </li>
+                </ul>
+              ) : null}
+            </>
           ) : (
-            <div className="panel px-5 py-7 text-center">
-              <p className="round text-[20px] leading-6 font-extrabold">No events yet.</p>
-              <p className="mx-auto mt-1.5 max-w-[290px] text-[15px] leading-[21px] text-muted">
-                Make one for the next meetup, or turn on &ldquo;I&apos;m at an event now&rdquo; when you get there.
+            <div className="panel mt-6 px-5 py-7 text-center">
+              <p className="round text-[20px] leading-6 font-extrabold">No events yet</p>
+              <p className="mx-auto mt-1.5 max-w-[300px] text-[15px] leading-[21px] text-muted">
+                Add one when you&apos;re heading out. Anyone you meet there gets filed under it, so you remember where you met.
               </p>
               <button type="button" className="btn btn-ink mt-4" onClick={() => setForm({ event: null, startNow: false })}>
                 <Icon name="plus" />
                 New event
               </button>
+              <p className="mt-3 text-[13px] text-muted">Only you see your events.</p>
             </div>
           )}
-          <p className="mx-4 mt-3 text-[13px] leading-[18px] text-muted">
-            Open an event to see the people you met there. Move someone from their page, under Event.
-          </p>
         </>
       )}
 
@@ -187,7 +242,7 @@ export default function EventsPage() {
           setError("");
         }}
         event={form?.event ?? null}
-        startNowDefault={form?.startNow ?? false}
+        defaultDate={form?.startNow ? londonToday() : ""}
         busy={busy}
         error={error}
         onSave={(draft) => void save(draft)}
@@ -195,10 +250,18 @@ export default function EventsPage() {
           form?.event
             ? async () => {
                 const name = form.event?.name ?? "";
-                if (await edit({ action: "delete", eventId: form.event?.id })) {
-                  setForm(null);
-                  show(`Deleted ${name}. Everyone's still in Your people.`);
-                }
+                const done = await edit({ action: "delete", eventId: form.event?.id });
+                if (!done) return;
+                setForm(null);
+                const deleted = done.deleted;
+                show(`Event deleted. '${name}' people are now under No event`, {
+                  ms: 8000,
+                  undo: deleted
+                    ? async () => {
+                        if (await edit({ action: "restore", event: deleted.event, connectionIds: deleted.connectionIds })) show(`${name} is back.`);
+                      }
+                    : undefined,
+                });
               }
             : undefined
         }
@@ -215,7 +278,8 @@ export default function EventsPage() {
         onStart={async (eventId) => {
           const done = await edit({ action: "start", eventId });
           setPicking(false);
-          if (done) show("You're at the event. New people go there.");
+          const label = done?.current?.label;
+          if (label) show(`New people go into ${label}.`);
         }}
       />
       <Toast toast={toast} onDone={hide} />

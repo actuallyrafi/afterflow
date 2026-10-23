@@ -5,14 +5,14 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { NoteCard } from "@/components/note-card";
-import { CalendarReminderCard } from "@/components/calendar-reminder";
+import { CalendarReminder } from "@/components/calendar-reminder";
 import { PersonSheet, type Step } from "@/components/person-sheet";
 import { SayHi } from "@/components/say-hi";
 import { stashToast, Toast, TopBar, useToast } from "@/components/ui/chrome";
 import { Icon } from "@/components/ui/icons";
 import { hueOf, Mark } from "@/components/ui/mark";
 import { api, shortDate } from "@/lib/api";
-import type { ConnectionCard, EventsView } from "@/lib/connections";
+import type { ConnectionCard, EventEditExtras, EventsView } from "@/lib/connections";
 import { firstOf } from "@/lib/handoff";
 
 type Loaded = {
@@ -74,24 +74,20 @@ export default function ConnectionPage() {
     return result.data;
   }
 
-  async function fileUnder(eventId: string | null, created?: { name: string; date: string }) {
+  async function createEvent(name: string, date: string): Promise<string | null> {
+    const made = await api<EventsView & EventEditExtras>(`/api/profiles/${token}/events`, {
+      method: "POST",
+      body: { action: "create", name, date },
+    });
+    if (!made.ok || !made.data.eventId) return null;
+    setData((current) => (current ? { ...current, events: made.data } : current));
+    return made.data.eventId;
+  }
+
+  async function move(target: string | null, options: { undo?: boolean } = {}) {
     setBusy(true);
     setError("");
-    let target = eventId;
-    if (created) {
-      const made = await api<EventsView & { eventId?: string }>(`/api/profiles/${token}/events`, {
-        method: "POST",
-        body: { action: "create", name: created.name, date: created.date },
-      });
-      if (!made.ok || !made.data.eventId) {
-        setBusy(false);
-        setError(made.data.error || "Couldn't make that event. Try again.");
-        setSheet(false);
-        return;
-      }
-      target = made.data.eventId;
-    }
-    const result = await api<EventsView>(`/api/profiles/${token}/events`, {
+    const result = await api<EventsView & EventEditExtras>(`/api/profiles/${token}/events`, {
       method: "POST",
       body: { action: "file", connectionId: id, eventId: target },
     });
@@ -101,9 +97,12 @@ export default function ConnectionPage() {
       setError(result.data.error || "Couldn't move them. Try again.");
       return;
     }
-    const label = result.data.events.find((event) => event.id === target)?.label;
     setData((current) => (current ? { ...current, events: result.data, connection: { ...current.connection, eventId: target } } : current));
-    show(label ? `Moved to ${label}` : "Not in an event now");
+    if (options.undo === false) return;
+    const name = data ? firstOf(data.connection.other.name) : "them";
+    const where = result.data.events.find((event) => event.id === target)?.name ?? "No event";
+    const previous = result.data.previous ?? "";
+    show(`Moved ${name} to ${where}`, { ms: 8000, undo: () => move(previous || null, { undo: false }) });
   }
 
   if (missing) {
@@ -173,7 +172,7 @@ export default function ConnectionPage() {
             type="button"
             className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 hover:text-ink"
             aria-haspopup="dialog"
-            aria-label={`${metLine}. Change event`}
+            aria-label={`${metLine}. Move ${first} to another event`}
             onClick={() => openSheet("event")}
           >
             {metLine}
@@ -236,11 +235,21 @@ export default function ConnectionPage() {
               contacts={contacts}
               myContacts={me.contacts}
               myName={me.name}
+              onToast={(text) => show(text)}
             />
           </div>
           {me.reminders && !connection.muted ? (
             <div className="rise" style={{ animationDelay: "240ms" }}>
-              <CalendarReminderCard token={token} connectionId={connection.id} theirName={other.name} metAt={connection.metAt} />
+              <CalendarReminder
+                connectionId={connection.id}
+                theirName={other.name}
+                metAt={connection.metAt}
+                onToast={(text) => show(text)}
+                onAdded={() => {
+                  // One reminder, not two: Afterflow's own banner for this person is done.
+                  void api(`/api/profiles/${token}/connections/${id}`, { method: "POST", body: { action: "reminder_done" } });
+                }}
+              />
             </div>
           ) : null}
           <div className="flex items-center justify-between gap-3 px-1.5 pt-4">
@@ -357,12 +366,11 @@ export default function ConnectionPage() {
         muted={connection.muted}
         isDemo={other.isDemo}
         busy={busy}
-        metLine={metLine}
         events={events.events}
         eventId={connection.eventId}
         initialStep={sheetStep}
-        onFile={(eventId) => void fileUnder(eventId)}
-        onCreateAndFile={(name, date) => void fileUnder(null, { name, date })}
+        onMove={(eventId) => void move(eventId)}
+        onCreateEvent={createEvent}
         onMute={async () => {
           const wasMuted = connection.muted;
           const done = await act(wasMuted ? "unmute" : "mute");

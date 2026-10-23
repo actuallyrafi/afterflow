@@ -1,4 +1,3 @@
-import { reminderFor, type CalendarReminder } from "./calendar";
 import { REMINDER_DELAY_MS } from "./event";
 import {
   activeCurrent,
@@ -9,6 +8,7 @@ import {
   sortEvents,
   type EventBook,
   type EventEdit,
+  type EventItem,
 } from "./events";
 import { firstOf } from "./handoff";
 import { nameMatches } from "./name-match";
@@ -53,20 +53,28 @@ export type ConnectionCard = {
   };
 };
 
+/** At most three, the most recent people. Never a number: nothing here can rank or reveal size. */
+export type EventMark = { name: string; seed: string };
+export const MARKS_MAX = 3;
+
 export type EventSummary = {
   id: string;
   name: string;
+  /** YYYY-MM-DD or "" (no date). */
   date: string;
   /** "Grok Bot London · 22 Oct" */
   label: string;
-  /** How many people you filed here. Only you see it, about your own event. */
-  people: number;
+  marks: EventMark[];
+  /** Nobody filed here yet. */
+  empty: boolean;
   seeded: boolean;
 };
 
 export type EventsView = {
   events: EventSummary[];
-  current: { eventId: string; until: string; label: string } | null;
+  /** People not in any event ("No event"). */
+  unfiled: { marks: EventMark[]; empty: boolean };
+  current: { eventId: string; until: string; label: string; name: string } | null;
 };
 
 export type HomeResult = {
@@ -208,12 +216,25 @@ async function fileUnderCurrent(store: Store, profile: Profile, connectionId: st
   await store.updateEventBook(profile.id, (current) => (current ? autoFile(current, connectionId, now) : null));
 }
 
+async function fileChoice(store: Store, me: Profile, connectionId: string, eventId: string) {
+  await editBook(store, me, (book) => {
+    if (eventId && !book.events.some((event) => event.id === eventId)) return null;
+    const filed = { ...book.filed };
+    if (eventId) filed[connectionId] = eventId;
+    else delete filed[connectionId];
+    return { ...book, filed };
+  });
+}
+
 function eventsView(book: EventBook, cards: ConnectionCard[], now: number): EventsView {
-  const visible = new Set(cards.map((card) => card.id));
-  const people = new Map<string, number>();
-  for (const [connectionId, eventId] of Object.entries(book.filed)) {
-    if (visible.has(connectionId)) people.set(eventId, (people.get(eventId) ?? 0) + 1);
-  }
+  const recent = [...cards].sort((left, right) => right.metAt.localeCompare(left.metAt));
+  const marksFor = (eventId: string | null) => {
+    const inIt = recent.filter((card) => (book.filed[card.id] ?? null) === eventId);
+    return {
+      marks: inIt.slice(0, MARKS_MAX).map((card) => ({ name: card.other.name, seed: card.other.publicId })),
+      empty: inIt.length === 0,
+    };
+  };
   const current = activeCurrent(book, now);
   const currentEvent = current ? book.events.find((event) => event.id === current.eventId) : undefined;
   return {
@@ -222,10 +243,11 @@ function eventsView(book: EventBook, cards: ConnectionCard[], now: number): Even
       name: event.name,
       date: event.date,
       label: eventLabel(event),
-      people: people.get(event.id) ?? 0,
+      ...marksFor(event.id),
       seeded: Boolean(event.seeded),
     })),
-    current: current && currentEvent ? { ...current, label: eventLabel(currentEvent) } : null,
+    unfiled: marksFor(null),
+    current: current && currentEvent ? { ...current, label: eventLabel(currentEvent), name: currentEvent.name } : null,
   };
 }
 
@@ -284,19 +306,28 @@ export async function editEvents(
   token: string,
   body: unknown,
   options: { now?: number } = {},
-): Promise<Result<EventsView & { eventId?: string }>> {
+): Promise<Result<EventsView & EventEditExtras>> {
   const now = options.now ?? Date.now();
   const me = await store.getProfileByToken(token);
   if (!me) return { status: 404, body: { error: "This card isn't available." } };
   const edit = (body && typeof body === "object" ? body : {}) as EventEdit;
+  const extras: EventEditExtras = {};
   let known = new Set<string>();
-  if (edit.action === "file") {
+  if (edit.action === "file" || edit.action === "restore") {
     const { rows } = await visibleCards(store, me, now);
     known = new Set(rows.map((row) => row.card.id));
   }
   let failure: { status: number; error: string } | null = null;
   let eventId: string | undefined;
   await editBook(store, me, (book) => {
+    // What Undo needs, from the book as it was. Only ever this person's own data.
+    if (edit.action === "delete") {
+      const gone = book.events.find((event) => event.id === edit.eventId);
+      extras.deleted = gone
+        ? { event: gone, connectionIds: Object.keys(book.filed).filter((id) => book.filed[id] === gone.id) }
+        : undefined;
+    }
+    if (edit.action === "file" && typeof edit.connectionId === "string") extras.previous = book.filed[edit.connectionId] ?? "";
     const result = applyEventEdit(book, edit, { now, knownConnection: (id) => known.has(id) });
     if (!result.ok) {
       failure = { status: result.status, error: result.error };
@@ -311,8 +342,16 @@ export async function editEvents(
   }
   const view = await listEvents(store, token, { now });
   if (!view) return { status: 404, body: { error: "This card isn't available." } };
-  return { status: 200, body: { ...view, ...(eventId ? { eventId } : {}) } };
+  return { status: 200, body: { ...view, ...(eventId ? { eventId } : {}), ...extras } };
 }
+
+export type EventEditExtras = {
+  eventId?: string;
+  /** After delete: the event and who was in it, so Undo can put it back. */
+  deleted?: { event: EventItem; connectionIds: string[] };
+  /** After file: where the person was before ("" = No event), for Undo. */
+  previous?: string;
+};
 
 export async function publicCard(store: Store, publicId: string): Promise<PersonCard | null> {
   const profile = await store.getProfileByPublicId(publicId);
@@ -343,6 +382,8 @@ export async function addMet(
   token: string,
   publicId: unknown,
   noteInput: unknown,
+  /** From meet confirm's [Change]: file under this event (or "" for No event) instead of the current one. */
+  eventChoice?: unknown,
 ): Promise<Result<{ connection: ConnectionCard }>> {
   const me = await store.getProfileByToken(token);
   if (!me) return { status: 404, body: { error: "This card isn't available." } };
@@ -414,7 +455,8 @@ export async function addMet(
   if (note) patch[side === "a" ? "aNote" : "bNote"] = note;
   match = (await store.patchMatch(match.id, patch)) ?? match;
   // "I'm at an event now": each side's own current event files this new connection for them.
-  await fileUnderCurrent(store, me, match.id);
+  if (typeof eventChoice === "string") await fileChoice(store, me, match.id, eventChoice);
+  else await fileUnderCurrent(store, me, match.id);
   if (created) await fileUnderCurrent(store, other, match.id);
   return { status: 200, body: { connection: toCard(match, me, other, await loadBook(store, me)) } };
 }
@@ -591,6 +633,13 @@ export async function updateCard(
     const updated = await store.updateProfile(me.id, { reminders: raw.reminders });
     return updated ? { status: 200, body: { profile: ownProfile(updated) } } : { status: 404, body: { error: "This card isn't available." } };
   }
+  // My card › Ways to reach me: star, remove, reorder or add without touching name or answer.
+  if (Array.isArray(raw.contacts) && Object.keys(raw).every((key) => key === "contacts" || key === "preferred")) {
+    const parsed = validateSubmission({ ...raw, name: me.name, answer: me.answer || "..." }, { requireConsent: false });
+    if (!parsed.ok) return { status: 400, body: { error: parsed.error } };
+    const updated = await store.updateProfile(me.id, { contacts: parsed.value.contacts });
+    return updated ? { status: 200, body: { profile: ownProfile(updated) } } : { status: 404, body: { error: "This card isn't available." } };
+  }
   const parsed = validateSubmission(raw, { requireConsent: false });
   if (!parsed.ok) return { status: 400, body: { error: parsed.error } };
   const updated = await store.updateProfile(me.id, parsed.value);
@@ -606,29 +655,3 @@ export async function deleteCard(store: Store, token: string, confirmName: unkno
   return { status: 200, body: { deleted: true } };
 }
 
-/**
- * The calendar reminder for one connection: only once you've both said yes, only if you turned
- * the gentle reminder on, and never for someone you muted.
- */
-export async function calendarReminder(
-  store: Store,
-  token: string,
-  matchId: string,
-  origin: string,
-  options: { now?: number } = {},
-): Promise<Result<{ reminder: CalendarReminder; theirName: string }>> {
-  const result = await getConnection(store, token, matchId);
-  if (!("connection" in result.body)) return { status: result.status, body: result.body };
-  const { connection, me } = result.body;
-  if (!connection.mutual) return { status: 409, body: { error: "That opens once you've both said yes." } };
-  if (!me.reminders) return { status: 409, body: { error: "Turn on the gentle reminder on My card first." } };
-  if (connection.muted) return { status: 409, body: { error: `You muted ${firstOf(connection.other.name)}, so there's no reminder.` } };
-  const reminder = reminderFor({
-    connectionId: connection.id,
-    theirName: connection.other.name,
-    metAt: connection.metAt,
-    url: `${origin}/m/${token}/c/${connection.id}`,
-    now: options.now,
-  });
-  return { status: 200, body: { reminder, theirName: connection.other.name } };
-}

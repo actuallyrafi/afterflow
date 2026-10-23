@@ -12,8 +12,8 @@ export const CHANNEL_LABEL: Record<Channel, string> = {
 
 export const CHANNEL_PLACEHOLDER: Record<Channel, string> = {
   whatsapp: "+44 7700 900123",
-  discord: "username",
-  instagram: "@handle",
+  discord: "sam.rivera",
+  instagram: "@sam.cooks",
   email: "you@example.com",
 };
 
@@ -40,8 +40,16 @@ export type Submission = {
   answer: string;
 };
 
-export const CONTACTS_LABEL = "Ways to reach you";
-export const CONTACTS_HELP = "Add any you use. Star the one you'd like people to try first. Only shared with people you both say you met.";
+export const CONTACTS_LABEL = "Ways to reach me";
+export const CONTACTS_HELP = "The starred one is shown first. Only people you both said you met can see these.";
+export const CONTACTS_LAST_ONE = "You need at least one way to be reached.";
+export const ADD_ANOTHER = "Add another way";
+export const FIELD_LABEL: Record<Channel, string> = {
+  whatsapp: "WhatsApp number",
+  discord: "Discord username",
+  instagram: "Instagram handle",
+  email: "Email",
+};
 
 export type ParsedContact = { channel: Channel; value: string };
 
@@ -59,6 +67,8 @@ export function isChannel(value: unknown): value is Channel {
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** Stricter check for new input (spec v4.1): a TLD of 2+ characters. Stored values still read with EMAIL. */
+const NEW_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export function normalizeContact(
   channel: unknown,
@@ -73,24 +83,28 @@ export function normalizeContact(
     if (/^07\d{9}$/.test(digits)) digits = `+44${digits.slice(1)}`;
     if (!digits.startsWith("+")) digits = `+${digits}`;
     if (!/^\+\d{8,15}$/.test(digits)) {
-      return { ok: false, error: "That number doesn't look right. Include the country code, like +44." };
+      return { ok: false, error: "Add your country code, like +44 7700 900123." };
     }
     return { ok: true, value: `whatsapp:${digits}` };
   }
   if (channel === "discord") {
     const name = text.replace(/^@/, "").toLowerCase();
-    if (!/^[a-z0-9_.]{2,32}$/.test(name)) {
-      return { ok: false, error: "Discord usernames are 2–32 letters, numbers, dots or underscores." };
+    if (!/^[a-z0-9_.]{2,32}$/.test(name) || name.includes("..")) {
+      return { ok: false, error: "Discord usernames are lowercase, like sam.rivera." };
     }
     return { ok: true, value: `discord:${name}` };
   }
   if (channel === "instagram") {
-    const handle = text.replace(/^@/, "").toLowerCase();
-    if (!/^[a-z0-9_.]{1,30}$/.test(handle)) return { ok: false, error: "That Instagram handle doesn't look right." };
+    const handle = text
+      .replace(/^(https?:\/\/)?(www\.)?instagram\.com\//i, "")
+      .replace(/[/?#].*$/, "")
+      .replace(/^@/, "")
+      .toLowerCase();
+    if (!/^[a-z0-9_.]{1,30}$/.test(handle) || handle.endsWith(".")) return { ok: false, error: "That doesn't look like an Instagram handle." };
     return { ok: true, value: `instagram:${handle}` };
   }
   const email = text.toLowerCase();
-  if (!EMAIL.test(email)) return { ok: false, error: "That email doesn't look right." };
+  if (!NEW_EMAIL.test(email)) return { ok: false, error: "Check the email address." };
   return { ok: true, value: `email:${email}` };
 }
 
@@ -164,13 +178,13 @@ function validateContacts(raw: Record<string, unknown>): { ok: true; value: stri
     }
     if (typeof value !== "string" || !value.trim()) continue;
     const checked = normalizeContact(channel, value);
-    if (!checked.ok) return { ok: false, error: `${isChannel(channel) ? CHANNEL_LABEL[channel] : "Contact"}: ${checked.error}` };
+    if (!checked.ok) return checked;
     const parsed = parseContact(checked.value);
     if (seen.has(parsed.channel)) continue;
     seen.add(parsed.channel);
     values.push(checked.value);
   }
-  if (!values.length) return { ok: false, error: "Add at least one way to reach you." };
+  if (!values.length) return { ok: false, error: CONTACTS_LAST_ONE };
   const preferred = isChannel(raw.preferred) ? raw.preferred : null;
   const index = preferred ? values.findIndex((value) => value.startsWith(`${preferred}:`)) : -1;
   if (index > 0) values.unshift(...values.splice(index, 1));

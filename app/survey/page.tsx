@@ -4,19 +4,17 @@ import { DemoTag } from "@/components/ui/demo-tag";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { CircleLink, TopBar } from "@/components/ui/chrome";
-import { Icon, type IconName } from "@/components/ui/icons";
+import { ContactWay, contactError } from "@/components/contact-fields";
+import { Icon } from "@/components/ui/icons";
 import { Mark } from "@/components/ui/mark";
 import { api, rememberToken, savedToken } from "@/lib/api";
 import type { HomeResult, PersonCard } from "@/lib/connections";
 import { clearPendingMeet, firstName, readPendingMeet, rememberMeet } from "@/lib/pending-meet";
 import {
   ANSWER_MAX,
-  CHANNEL_LABEL,
-  CHANNEL_PLACEHOLDER,
   CHANNELS,
   CONSENT_TEXT,
-  CONTACTS_HELP,
-  CONTACTS_LABEL,
+  CONTACT_LABEL,
   NAME_LABEL,
   NAME_MAX,
   parseContact,
@@ -26,10 +24,7 @@ import {
   type Channel,
 } from "@/lib/survey";
 
-const INPUT_MODE: Record<Channel, "tel" | "text" | "email"> = { whatsapp: "tel", discord: "text", instagram: "text", email: "email" };
-const CHANNEL_ICON: Record<Channel, IconName> = { whatsapp: "chat", discord: "chat", instagram: "camera", email: "mail" };
-const CHANNEL_HUE: Record<Channel, number> = { whatsapp: 3, discord: 4, instagram: 5, email: 2 };
-const EMPTY: Record<Channel, string> = { whatsapp: "", discord: "", instagram: "", email: "" };
+type Way = { channel: Channel; value: string };
 
 function forInput(channel: Channel, value: string) {
   return channel === "instagram" ? `@${value}` : value;
@@ -37,8 +32,9 @@ function forInput(channel: Channel, value: string) {
 
 export default function CardForm() {
   const [name, setName] = useState("");
-  const [values, setValues] = useState<Record<Channel, string>>(EMPTY);
-  const [preferred, setPreferred] = useState<Channel | null>(null);
+  // The first way is "Best way to reach you" (the starred one); the rest are optional extras.
+  const [ways, setWays] = useState<Way[]>([{ channel: "whatsapp", value: "" }]);
+  const [tried, setTried] = useState(false);
   const [answer, setAnswer] = useState("");
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
@@ -56,14 +52,13 @@ export default function CardForm() {
       void api<HomeResult>(`/api/profiles/${token}`).then((result) => {
         if (result.ok && result.data.profile) {
           const stored = result.data.profile.contacts?.length ? result.data.profile.contacts : [result.data.profile.contact];
-          const next = { ...EMPTY };
+          const next: Way[] = [];
           for (const value of stored) {
             const parsed = parseContact(value);
-            if (parsed.value && !next[parsed.channel]) next[parsed.channel] = forInput(parsed.channel, parsed.value);
+            if (parsed.value && !next.some((way) => way.channel === parsed.channel)) next.push({ channel: parsed.channel, value: forInput(parsed.channel, parsed.value) });
           }
           setName(result.data.profile.name);
-          setValues(next);
-          setPreferred(stored[0] ? parseContact(stored[0]).channel : null);
+          if (next.length) setWays(next);
           setAnswer(result.data.profile.answer);
         } else setEditToken(null);
         setReady(true);
@@ -83,16 +78,25 @@ export default function CardForm() {
   const meetFirst = meetPerson ? firstName(meetPerson.name) : "";
   const editing = Boolean(editToken);
 
-  const filled = CHANNELS.filter((option) => values[option].trim());
-  // The star sits on the one you picked, or on the first you filled in.
-  const starred: Channel | null = preferred && values[preferred].trim() ? preferred : (filled[0] ?? null);
+  function setWay(index: number, patch: Partial<Way>) {
+    setWays((current) => current.map((way, i) => (i === index ? { ...way, ...patch, ...(patch.channel ? { value: "" } : {}) } : way)));
+  }
+
+  function addWay() {
+    const free = CHANNELS.find((option) => !ways.some((way) => way.channel === option));
+    if (free) setWays((current) => [...current, { channel: free, value: "" }]);
+  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    setTried(true);
+    // Extra ways left empty are just skipped; a bad value stops the save with its own message.
+    const filled = ways.filter((way, index) => index === 0 || way.value.trim());
+    if (filled.some((way) => contactError(way.channel, way.value))) return;
     setSaving(true);
-    const contacts = filled.map((option) => ({ channel: option, value: values[option] }));
-    const body = { name, contacts, preferred: starred, answer, consent };
+    const contacts = filled.map((way) => ({ channel: way.channel, value: way.value }));
+    const body = { name, contacts, preferred: ways[0].channel, answer, consent };
     const result = editing
       ? await api<{ profile?: unknown }>(`/api/profiles/${editToken}`, { method: "PATCH", body })
       : await api<{ token?: string }>("/api/profiles", { method: "POST", body });
@@ -151,51 +155,55 @@ export default function CardForm() {
           />
         </label>
 
-        <fieldset className="mt-2.5" aria-describedby="contact-help">
-          <legend className="mx-1 mb-1.5 text-[13px] leading-[18px] font-semibold text-muted">{CONTACTS_LABEL}</legend>
-          <div className="group">
-            {CHANNELS.map((option) => {
-              const has = Boolean(values[option].trim());
-              const isStar = starred === option;
-              return (
-                <div key={option} className="contact-row">
-                  <span className={`app-chip hue-${CHANNEL_HUE[option]}`} aria-hidden="true">
-                    <Icon name={CHANNEL_ICON[option]} />
-                  </span>
-                  <span className="contact-main">
-                    <label htmlFor={`contact-${option}`} className="contact-label">
-                      {CHANNEL_LABEL[option]}
-                      {isStar ? <span className="font-normal"> · tried first</span> : null}
-                    </label>
-                    <input
-                      id={`contact-${option}`}
-                      value={values[option]}
-                      onChange={(event) => setValues((current) => ({ ...current, [option]: event.target.value }))}
-                      inputMode={INPUT_MODE[option]}
-                      type={option === "email" ? "email" : option === "whatsapp" ? "tel" : "text"}
-                      autoComplete={option === "email" ? "email" : option === "whatsapp" ? "tel" : "off"}
-                      autoCapitalize="off"
-                      spellCheck={false}
-                      placeholder={CHANNEL_PLACEHOLDER[option]}
-                    />
-                  </span>
+        <fieldset className="field mt-2.5">
+          <legend className="sr-only">{CONTACT_LABEL}</legend>
+          <span className="field-label" aria-hidden="true">
+            {CONTACT_LABEL}
+          </span>
+          <ContactWay
+            id="contact"
+            channel={ways[0].channel}
+            value={ways[0].value}
+            taken={ways.slice(1).map((way) => way.channel)}
+            onChannel={(channel) => setWay(0, { channel })}
+            onValue={(value) => setWay(0, { value })}
+            showError={tried}
+          />
+          {ways.slice(1).map((way, offset) => {
+            const index = offset + 1;
+            return (
+              <div key={index} className="mt-3 border-t-[0.5px] border-line pt-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] font-semibold text-muted">Another way · optional</span>
                   <button
                     type="button"
-                    className="star"
-                    aria-pressed={isStar}
-                    disabled={!has}
-                    aria-label={isStar ? `${CHANNEL_LABEL[option]} is the one people try first` : `Make ${CHANNEL_LABEL[option]} the one people try first`}
-                    onClick={() => setPreferred(option)}
+                    className="btn btn-sm btn-plain !h-8 !px-2"
+                    onClick={() => setWays((current) => current.filter((_, i) => i !== index))}
+                    aria-label={`Remove this way to reach you`}
                   >
-                    <Icon name="star" />
+                    Remove
                   </button>
                 </div>
-              );
-            })}
-          </div>
-          <p id="contact-help" className="mx-1 mt-1.5 text-[12px] leading-4 text-muted">
-            {CONTACTS_HELP}
-          </p>
+                <ContactWay
+                  id={`contact-${index + 1}`}
+                  channel={way.channel}
+                  value={way.value}
+                  taken={ways.filter((_, i) => i !== index).map((other) => other.channel)}
+                  onChannel={(channel) => setWay(index, { channel })}
+                  onValue={(value) => setWay(index, { value })}
+                  showError={tried && Boolean(way.value.trim())}
+                  autoFocus
+                />
+              </div>
+            );
+          })}
+          {ways.length < CHANNELS.length ? (
+            <button type="button" className="mt-2 flex min-h-11 w-full items-center gap-2.5 border-t-[0.5px] border-line pt-2 text-left text-[16px]" onClick={addWay}>
+              <Icon name="plus" size={20} />
+              <span className="font-semibold">Add another way</span>
+              <span className="text-muted">· optional</span>
+            </button>
+          ) : null}
         </fieldset>
 
         <label htmlFor="answer" className="round mx-1 mt-[18px] mb-0.5 block text-[18px] leading-6 font-extrabold">

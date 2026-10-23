@@ -1,18 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { actOnConnection, addMet, editEvents, getConnection, listEvents, listHome } from "./connections";
-import { applyEventEdit, autoFile, CURRENT_EVENT_MS, emptyBook, eventLabel, normalizeEventBook, SEED_CUTOFF, SEED_EVENT, seededBook } from "./events";
+import { applyEventEdit, autoFile, currentUntil, emptyBook, eventLabel, normalizeEventBook, SEED_CUTOFF, SEED_EVENT, seededBook } from "./events";
 import { createNetlifyBlobStore } from "./netlify-blob-store";
 import { memoryBlobs } from "./netlify-blob-store.test-helpers";
 import type { Store } from "./store";
 import { card, tempStore } from "./test-helpers";
 
-type View = { events: { id: string; name: string; label: string; people: number }[]; current: { eventId: string } | null; eventId?: string };
+type View = {
+  events: { id: string; name: string; label: string; marks: { name: string; seed: string }[]; empty: boolean }[];
+  unfiled: { marks: { name: string }[]; empty: boolean };
+  current: { eventId: string; until: string } | null;
+  eventId?: string;
+  deleted?: { event: unknown; connectionIds: string[] };
+  previous?: string;
+};
 
 async function ev(store: Store, token: string, body: Record<string, unknown>): Promise<View> {
   const result = await editEvents(store, token, body);
   assert.equal(result.status, 200, JSON.stringify(result.body));
-  return result.body as View;
+  return result.body as unknown as View;
 }
 
 async function connect(store: Store, left: { secretToken: string }, right: { secretToken: string; publicId: string }) {
@@ -33,7 +40,10 @@ test("create an event, file someone in it, rename it; label reads 'Name · 22 Oc
   assert.equal(eventLabel({ name: "Grok Bot London", date: "2026-10-22" }), "Grok Bot London · 22 Oct");
 
   const filed = await ev(store, ada.secretToken, { action: "file", connectionId: id, eventId });
-  assert.equal(filed.events.find((e) => e.id === eventId)?.people, 1);
+  assert.equal(filed.events.find((e) => e.id === eventId)?.marks.length, 1);
+  assert.equal(filed.events.find((e) => e.id === eventId)?.empty, false);
+  assert.notEqual(filed.previous, eventId, "Undo knows where they were before");
+  assert.equal(typeof filed.previous, "string");
   const home = await listHome(store, ada.secretToken);
   assert.equal(home?.connections[0].eventId, eventId);
 
@@ -48,7 +58,7 @@ test("create an event, file someone in it, rename it; label reads 'Name · 22 Oc
 
   // Move back out.
   const out = await ev(store, ada.secretToken, { action: "file", connectionId: id, eventId: null });
-  assert.equal(out.events.find((e) => e.id === eventId)?.people, 0);
+  assert.equal(out.events.find((e) => e.id === eventId)?.empty, true);
 });
 
 test("deleting an event moves people back to unfiled and never deletes connections", async () => {
@@ -91,12 +101,18 @@ test("I'm at an event now: new connections are filed automatically, for 24 hours
   const three = await connect(store, ada, sam);
   assert.equal((await listHome(store, ada.secretToken))?.connections.find((c) => c.id === three)?.eventId, null);
 
-  // The 24 hours run out by themselves.
-  const book = applyEventEdit(emptyBook(), { action: "create", name: "X", date: "2026-10-24", startNow: true }, { now: 0, newId: () => "x" });
+  // It runs out by itself: 12 hours, or 04:00 London time, whichever comes first.
+  const t0 = Date.parse("2026-10-23T10:00:00Z");
+  const book = applyEventEdit(emptyBook(), { action: "create", name: "X", date: "2026-10-24", startNow: true }, { now: t0, newId: () => "x" });
   assert.ok(book.ok);
   if (!book.ok) return;
-  assert.equal(autoFile(book.book, "c1", CURRENT_EVENT_MS - 1)?.filed.c1, "x");
-  assert.equal(autoFile(book.book, "c1", CURRENT_EVENT_MS + 1), null);
+  assert.equal(book.book.current?.until, "2026-10-23T22:00:00.000Z", "12 hours");
+  assert.equal(autoFile(book.book, "c1", t0 + 12 * 3600_000 - 1)?.filed.c1, "x");
+  assert.equal(autoFile(book.book, "c1", t0 + 12 * 3600_000 + 1), null);
+  // Started at 21:00 BST on the night the clocks go back: off at 04:00 GMT, not 12 hours later.
+  assert.equal(currentUntil(Date.parse("2026-10-24T20:00:00Z")), "2026-10-25T04:00:00.000Z");
+  // Started at 01:00: off at 04:00 the same morning.
+  assert.equal(currentUntil(Date.parse("2026-10-23T00:00:00Z")), "2026-10-23T03:00:00.000Z");
 });
 
 test("events are private per side: my filing doesn't change theirs, and they never see my events", async () => {
@@ -137,7 +153,7 @@ test("migration is lazy: older cards see Grok Bot London with their older connec
   const home = await listHome(store, "tok-ada");
   assert.equal(home?.events.events[0]?.id, SEED_EVENT.id);
   assert.equal(home?.events.events[0]?.label, "Grok Bot London · 22 Oct");
-  assert.equal(home?.events.events[0]?.people, 1);
+  assert.deepEqual(home?.events.events[0]?.marks.map((mark) => mark.name), ["Jonah"]);
   assert.equal(home?.connections[0].eventId, SEED_EVENT.id);
   assert.equal(blobs.keys().some((key) => key.startsWith("eventbooks/")), false, "reading writes nothing");
 
@@ -171,4 +187,62 @@ test("stored books are read tolerantly: unknown events and broken entries are dr
   assert.deepEqual(book?.events.map((e) => e.id), ["a"]);
   assert.deepEqual(book?.filed, { m1: "a" });
   assert.equal(book?.current, null);
+});
+
+test("delete then Undo puts the event back with the same people; a move reports where they were", async () => {
+  const store = tempStore("afterflow-events-undo");
+  const ada = await store.createProfile(card("Ada"));
+  const jo = await store.createProfile(card("Jonah"));
+  const mi = await store.createProfile(card("Mira"));
+  const one = await connect(store, ada, jo);
+  const two = await connect(store, ada, mi);
+  const { eventId } = await ev(store, ada.secretToken, { action: "create", name: "Climbing social", date: "" });
+  assert.notEqual((await ev(store, ada.secretToken, { action: "file", connectionId: one, eventId })).previous, eventId);
+  await ev(store, ada.secretToken, { action: "file", connectionId: two, eventId });
+  const gone = await ev(store, ada.secretToken, { action: "delete", eventId });
+  assert.deepEqual(gone.deleted?.connectionIds.sort(), [one, two].sort());
+  assert.equal(gone.events.some((e) => e.id === eventId), false);
+  const back = await ev(store, ada.secretToken, { action: "restore", event: gone.deleted?.event, connectionIds: gone.deleted?.connectionIds });
+  assert.equal(back.eventId, eventId);
+  assert.equal(back.events.find((e) => e.id === eventId)?.marks.length, 2);
+  const home = await listHome(store, ada.secretToken);
+  assert.ok(home?.connections.every((c) => c.eventId === eventId));
+  // Restore can't file someone else's connection.
+  const eve = await store.createProfile(card("Eve"));
+  const r = await editEvents(store, eve.secretToken, { action: "restore", event: gone.deleted?.event, connectionIds: [one] });
+  assert.equal(r.status, 200);
+  assert.equal((r.body as unknown as View).events.find((e) => e.id === eventId)?.empty, true);
+});
+
+test("an event shows at most three marks and never a count", async () => {
+  const store = tempStore("afterflow-events-marks");
+  const ada = await store.createProfile(card("Ada"));
+  const { eventId } = await ev(store, ada.secretToken, { action: "create", name: "Big night", date: "2026-10-24", startNow: true });
+  for (const name of ["Bo", "Cy", "Di", "Ed", "Fa"]) {
+    const other = await store.createProfile(card(name));
+    await connect(store, ada, other);
+  }
+  const view = await listEvents(store, ada.secretToken);
+  const big = view?.events.find((e) => e.id === eventId);
+  assert.equal(big?.marks.length, 3);
+  assert.equal(JSON.stringify(view).match(/"(people|count|total)"/), null, "no counts in the payload");
+});
+
+test("meet confirm can override the live event: '' means No event, an id files it there", async () => {
+  const store = tempStore("afterflow-events-choice");
+  const ada = await store.createProfile(card("Ada"));
+  const { eventId: live } = await ev(store, ada.secretToken, { action: "create", name: "Live", date: "2026-10-24", startNow: true });
+  const { eventId: other } = await ev(store, ada.secretToken, { action: "create", name: "Other", date: "2026-10-01" });
+  const bo = await store.createProfile(card("Bo"));
+  const cy = await store.createProfile(card("Cy"));
+  const di = await store.createProfile(card("Di"));
+  const a = await addMet(store, ada.secretToken, bo.publicId, "", "");
+  const b = await addMet(store, ada.secretToken, cy.publicId, "", other);
+  const c = await addMet(store, ada.secretToken, di.publicId, "");
+  const id = (r: typeof a) => ("connection" in r.body ? r.body.connection.id : "");
+  const home = await listHome(store, ada.secretToken);
+  const where = (cid: string) => home?.connections.find((x) => x.id === cid)?.eventId ?? null;
+  assert.equal(where(id(a)), null);
+  assert.equal(where(id(b)), other);
+  assert.equal(where(id(c)), live);
 });
