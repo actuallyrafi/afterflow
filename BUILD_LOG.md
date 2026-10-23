@@ -112,3 +112,15 @@ Built on commits eee38664415ceaa80646ce8f5bafe4769bcd36b9 (features, data and Bi
 - BIBLE.md is v1.1, with a positioning section ("Afterflow is the connector, not the connection. You do the connecting.") and a changelog.
 - Not built: web push. There is still no email sending.
 - 55 tests pass. The QR meet flow passes in two separate browsers against a local production build.
+
+### 23 Oct 2026, 03:32 BST — v4.1a quote cards and a calmer person page
+
+Built on commit 4220b3e8d7c7c8509953e97d6cc7d1927540706e, on the local branch v4-redesign. Preview only, not production.
+
+- What you both said is now two stacked quote cards, theirs first, each with a thin rule in that person's colour and a label such as "Mira said · Grok Bot London". They are plain quotes, not chat: no bubbles, tails, times or reply box.
+- The person page drops the chat-style top bar. It shows floating back and ⋯ buttons, then their mark, their name and where you met. A plain title bar with their name fades in as you scroll, and it stays solid when Reduce transparency is on.
+- The page now reads Say hi, then the quotes, then your notes, then the calendar reminder.
+- Discord's copy-username button is a copy icon with the word "Username".
+- The How we built page now carries the positioning line: "Afterflow is the connector, not the connection. You do the connecting."
+- The TypeScript build cache is no longer tracked, so builds stop leaving a stray change.
+- 60 tests pass. The QR meet flow passes against a local production build. A fresh browser with no saved card sees only the neutral reminder page, checked in Chromium, Firefox and WebKit, and the QR redirect works in all three.
