@@ -99,3 +99,16 @@ Built on commit 21f07f12d4bde418944012d9f409f1ef9c457dd4, still on the local bra
 - The organiser page leads with Talked again (private marks, added up) and Both said yes. Connections requested and cards are small context. Nothing is per person or ranked.
 - Demo people carry the same small Demo label everywhere they appear.
 - The QR meet flow was tested end to end in two separate browsers, one of them an emulated phone, including the storage fallback.
+
+### 23 Oct 2026, 03:11 BST — v4.1: tab bar, private events, several ways to reach you, calendar reminder
+
+Built on commits eee38664415ceaa80646ce8f5bafe4769bcd36b9 (features, data and Bible v1.1) and fa3129d81cafa4a0b7e05151d0e17f4ead2febb7 (design pass to Pixel's spec v4.1), on the local branch v4-redesign. Preview only, not production.
+
+- A floating tab bar with Your people, Events and My card. It shows only on those three screens and hides while the keyboard is open. My card is no longer in the ⋯ menu, which now holds Blocked, Privacy and your data, and Help and feedback. The + to add someone moved to the Your people header.
+- Events are private to each person. You can make, rename and delete them (deleting only moves people to No event, with Undo), move someone from their ⋯ sheet, and filter Your people by event. "I'm at an event now" files new people automatically and turns itself off at 4am or after 12 hours. Events show up to three small marks and never a number.
+- People who joined before this release see a "Grok Bot London · 22 Oct" event holding their earlier connections. It is worked out when read and only saved once they change something, so the live site's data is never rewritten.
+- A card can hold one way to reach you per app (WhatsApp, Discord, Instagram, email), with one starred. Old single-contact cards read as before, and the live build keeps reading the starred one. Say hi goes to an app you both use first, then their starred one, then the rest in their order.
+- "Add a reminder to my calendar": a Google Calendar link or a .ics file made on the phone, "Say hi to Mira" three days after you met. The calendar only gets the title and a link without your private key; that link opens Afterflow on your own phone and shows nothing about the person anywhere else. Adding it switches off Afterflow's own reminder for that person.
+- BIBLE.md is v1.1, with a positioning section ("Afterflow is the connector, not the connection. You do the connecting.") and a changelog.
+- Not built: web push. There is still no email sending.
+- 55 tests pass. The QR meet flow passes in two separate browsers against a local production build.
