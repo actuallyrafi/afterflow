@@ -1,4 +1,5 @@
 import type { SVGProps } from "react";
+import { BrandIcon, isBrand, type BrandName } from "./brand-icons";
 
 const paths = {
   back: <path d="M15 5l-7 7 7 7" />,
@@ -83,6 +84,13 @@ const paths = {
       <path d="M4.5 7.5l7.5 5.5 7.5-5.5" />
     </>
   ),
+  /* v4.1h: the channel icon for Email, drawn on the brand glyphs' optical size (19 wide vs mail's 17). */
+  email: (
+    <>
+      <rect x="2.75" y="5" width="18.5" height="14" rx="3.5" />
+      <path d="M3.9 7.4l8.1 5.9 8.1-5.9" />
+    </>
+  ),
   camera: (
     <>
       <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
@@ -132,19 +140,6 @@ const paths = {
       <circle cx="12" cy="10" r="2.3" />
     </>
   ),
-  whatsapp: (
-    <>
-      <path d="M4.5 19.5l1.2-3.6A8 8 0 1112 20a8 8 0 01-3.9-1z" />
-      <path d="M9.2 8.6c.2-.4.6-.5.9-.4l.6.2.7 1.6-.6.8c.5 1 1.3 1.8 2.3 2.3l.8-.6 1.6.7.2.6c.1.3 0 .7-.4.9-1 .6-2.4.4-3.9-.7a8 8 0 01-2.4-2.6c-.6-1.2-.5-2.2.2-2.8z" />
-    </>
-  ),
-  discord: (
-    <>
-      <path d="M7 6.5c1.5-.7 3.2-1 5-1s3.5.3 5 1c1.7 2.4 2.5 5 2.4 8.2a12 12 0 01-4 2.2l-.9-1.6a9 9 0 01-5 0l-.9 1.6a12 12 0 01-4-2.2C4.5 11.5 5.3 8.9 7 6.5z" />
-      <circle cx="9.6" cy="11.6" r=".9" />
-      <circle cx="14.4" cy="11.6" r=".9" />
-    </>
-  ),
   alert: (
     <>
       <circle cx="12" cy="12" r="8.5" />
@@ -157,9 +152,11 @@ const paths = {
   folder: <path d="M3.5 7.5a2.5 2.5 0 012.5-2.5h3.6l2 2.2H18a2.5 2.5 0 012.5 2.5v7.8A2.5 2.5 0 0118 20H6a2.5 2.5 0 01-2.5-2.5z" />,
 } as const;
 
-export type IconName = keyof typeof paths;
+export type IconName = keyof typeof paths | BrandName;
 
 export function Icon({ name, size, ...rest }: { name: IconName; size?: number } & SVGProps<SVGSVGElement>) {
+  // v4.1h: WhatsApp, Discord and Instagram are the official filled glyphs, not line drawings.
+  if (isBrand(name)) return <BrandIcon name={name} size={size} className={rest.className} style={rest.style} />;
   return (
     <svg
       viewBox="0 0 24 24"

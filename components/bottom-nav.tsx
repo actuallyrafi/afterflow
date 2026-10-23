@@ -58,9 +58,9 @@ export function BottomNav({ token }: { token: string }) {
   const router = useRouter();
   const keyboard = useKeyboardOpen();
   const current = tabFor(pathname, token);
-  // v4.1g: the liquid pill. The hook runs before the early return (rules of hooks); the controller
-  // moves the pill at once on tap or drag release and onPick navigates.
-  const ref = useLiquidSelect<HTMLElement>(current?.key, (index) => router.push(`/m/${token}${TABS[index].path}`));
+  // v4.1h: the liquid pill. The hook runs before the early return (rules of hooks). The pill starts on the
+  // compositor at once; onPick navigates two frames later, so the route render never delays the first frame.
+  const ref = useLiquidSelect<HTMLElement>(current?.key, (index) => router.push(`/m/${token}${TABS[index].path}`), { commit: "frame" });
   if (!current?.exact) return null;
   return (
     <nav ref={ref} className="tabbar glass lq" aria-label="Main" data-hidden={keyboard ? "" : undefined} aria-hidden={keyboard || undefined}>

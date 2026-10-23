@@ -198,7 +198,7 @@ export function StartEventSheet({
         New people go into the event you pick. Turns itself off at 4am.
       </p>
       <div className="group max-h-[50vh] overflow-y-auto">
-        {events.map((event, index) => (
+        {events.map((event) => (
           <button
             key={event.id}
             type="button"

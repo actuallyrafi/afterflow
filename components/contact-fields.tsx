@@ -5,7 +5,7 @@ import { CHANNEL_LABEL, CHANNEL_PLACEHOLDER, CHANNELS, FIELD_LABEL, normalizeCon
 import { LiquidLabel, LiquidPill, useLiquidSelect } from "./liquid";
 import { Icon, type IconName } from "./ui/icons";
 
-export const CHANNEL_ICON: Record<Channel, IconName> = { whatsapp: "whatsapp", discord: "discord", instagram: "camera", email: "mail" };
+export const CHANNEL_ICON: Record<Channel, IconName> = { whatsapp: "whatsapp", discord: "discord", instagram: "instagram", email: "email" };
 const INPUT_TYPE: Record<Channel, "tel" | "text" | "email"> = { whatsapp: "tel", discord: "text", instagram: "text", email: "email" };
 const AUTOCOMPLETE: Record<Channel, string> = { whatsapp: "tel", discord: "off", instagram: "off", email: "email" };
 
@@ -43,13 +43,18 @@ export function ContactWay({
   const [touched, setTouched] = useState(false);
   const errorId = useId();
   const error = touched || showError ? contactError(channel, value) : "";
-  // v4.1g: drag release / arrow keys pick through the controller (taps also run onClick below).
-  const seg = useLiquidSelect<HTMLDivElement>(channel, (index) => {
-    const option = CHANNELS[index];
-    if (taken.includes(option)) return;
-    onChannel(option);
-    setTouched(false);
-  });
+  // v4.1i: taps, drags and arrow keys all pick through the controller. Commit two frames in (the pill is
+  // already on the compositor): the field below must switch before someone starts typing.
+  const seg = useLiquidSelect<HTMLDivElement>(
+    channel,
+    (index) => {
+      const option = CHANNELS[index];
+      if (taken.includes(option)) return;
+      onChannel(option);
+      setTouched(false);
+    },
+    { commit: "frame" },
+  );
   return (
     <div>
       <div ref={seg} role="radiogroup" aria-label="App" className="seg lq !mt-2">
@@ -67,11 +72,6 @@ export function ContactWay({
               aria-disabled={used || undefined}
               tabIndex={channel === option ? 0 : -1}
               className={`lq-opt ${used ? "opacity-40" : ""}`}
-              onClick={() => {
-                if (used) return;
-                onChannel(option);
-                setTouched(false);
-              }}
             >
               <LiquidLabel>{CHANNEL_LABEL[option]}</LiquidLabel>
             </button>
@@ -133,7 +133,8 @@ export function ContactTabs({
   const helpId = useId();
   const value = values[active] ?? "";
   const error = saveError || (touched.includes(active) ? contactError(active, value) : "");
-  const seg = useLiquidSelect<HTMLDivElement>(active, (index) => onActive(CHANNELS[index]));
+  // v4.1i: "frame", so the field shows the tapped app's value before the next keystroke.
+  const seg = useLiquidSelect<HTMLDivElement>(active, (index) => onActive(CHANNELS[index]), { commit: "frame" });
   return (
     <div>
       <div ref={seg} role="radiogroup" aria-label="App" className="seg lq !mt-2">
@@ -151,7 +152,6 @@ export function ContactTabs({
               aria-label={`${CHANNEL_LABEL[option]}${filled ? ", filled in" : ""}`}
               tabIndex={active === option ? 0 : -1}
               className="lq-opt relative"
-              onClick={() => onActive(option)}
             >
               <LiquidLabel>{CHANNEL_LABEL[option]}</LiquidLabel>
               {/* v4.1d filled dot: a direct child of the option, so it sits above the pill (z-index 2). */}

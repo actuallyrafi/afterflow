@@ -1,7 +1,8 @@
 "use client";
-/* v4.1g liquid-glass sliding selectors (design-spec-v41g-motion §6.2): one hook + two markup helpers. */
+/* v4.1h liquid-glass sliding selectors (design-spec-v41h §3): one hook + two markup helpers. The motion runs on the
+   compositor (WAAPI); onPick runs once the pill has landed ("settle") or two frames in ("frame", navigation). */
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { LiquidSelect, type LiquidOptions } from "@/lib/liquid-select";
+import { LiquidSelect, type CommitMode, type LiquidOptions } from "@/lib/liquid-select";
 
 /**
  * Attaches a LiquidSelect to the returned ref. Differs from the spec's hook in one way: it re-checks
@@ -9,7 +10,12 @@ import { LiquidSelect, type LiquidOptions } from "@/lib/liquid-select";
  * segmented controls inside a sheet that only renders when open) get a controller too, and a
  * replaced element gets a fresh one. `sync()` runs when the selected key changes.
  */
-export function useLiquidSelect<T extends HTMLElement>(selectedKey: unknown, onPick?: LiquidOptions["onPick"]) {
+export function useLiquidSelect<T extends HTMLElement>(
+  selectedKey: unknown,
+  onPick?: LiquidOptions["onPick"],
+  options: { commit?: CommitMode } = {},
+) {
+  const commit = options.commit ?? "settle";
   const ref = useRef<T>(null);
   const ctl = useRef<LiquidSelect | null>(null);
   const pick = useRef(onPick);
@@ -20,7 +26,7 @@ export function useLiquidSelect<T extends HTMLElement>(selectedKey: unknown, onP
       ctl.current.destroy();
       ctl.current = null;
     }
-    if (el && !ctl.current) ctl.current = new LiquidSelect(el, { onPick: (i, item) => pick.current?.(i, item) });
+    if (el && !ctl.current) ctl.current = new LiquidSelect(el, { commit, onPick: (i, item) => pick.current?.(i, item) });
   });
   useLayoutEffect(() => () => {
     ctl.current?.destroy();

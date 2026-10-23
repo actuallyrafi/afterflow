@@ -11,8 +11,10 @@ declare global {
   }
 }
 
+let fadeTimer = 0;
+
 /** D29: the device's Appearance choice; setting it applies at once (no reload) and saves it. */
-export function useTheme(): [ThemeChoice, (choice: ThemeChoice, options?: { delayMs?: number }) => void] {
+export function useTheme(): [ThemeChoice, (choice: ThemeChoice, options?: { fade?: boolean }) => void] {
   const [choice, setChoice] = useState<ThemeChoice>("system");
   useEffect(() => {
     try {
@@ -25,9 +27,16 @@ export function useTheme(): [ThemeChoice, (choice: ThemeChoice, options?: { dela
     choice,
     (next, options = {}) => {
       setChoice(next);
-      // v4.1g: the Appearance pill lands first, then the colours change (spec §6.3, 200ms).
-      if (options.delayMs) window.setTimeout(() => window.__afTheme?.(next), options.delayMs);
-      else window.__afTheme?.(next);
+      // v4.1i: the colours start changing at once (a short crossfade) while the pill, on the compositor,
+      // finishes its glide. No delay: waiting for the pill to land (~380ms) felt laggy (per Tanvir).
+      const root = document.documentElement;
+      const fade = options.fade && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (fade) {
+        root.classList.add("af-theme-fade");
+        window.clearTimeout(fadeTimer);
+        fadeTimer = window.setTimeout(() => root.classList.remove("af-theme-fade"), 260);
+      }
+      window.__afTheme?.(next);
     },
   ];
 }
@@ -35,7 +44,9 @@ export function useTheme(): [ThemeChoice, (choice: ThemeChoice, options?: { dela
 /** My card › settings: a segmented System / Light / Dark control. */
 export function AppearanceControl() {
   const [choice, setTheme] = useTheme();
-  const seg = useLiquidSelect<HTMLDivElement>(choice, (index) => setTheme(THEMES[index], { delayMs: 200 }));
+  // v4.1i (review of Pixel's patch): commit two frames in, not when the pill lands, so the theme starts
+  // changing ~33ms after the tap (well inside 120ms) and crossfades while the pill keeps gliding.
+  const seg = useLiquidSelect<HTMLDivElement>(choice, (index) => setTheme(THEMES[index], { fade: true }), { commit: "frame" });
   return (
     <div className="item flush flex-col !items-stretch">
       <span id="appearance-label" className="t block">
@@ -52,7 +63,6 @@ export function AppearanceControl() {
             aria-checked={choice === option}
             tabIndex={choice === option ? 0 : -1}
             data-theme-option={option}
-            onClick={() => setTheme(option, { delayMs: 200 })}
           >
             <LiquidLabel>{THEME_LABEL[option]}</LiquidLabel>
           </button>

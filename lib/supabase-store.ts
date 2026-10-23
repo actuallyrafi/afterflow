@@ -97,7 +97,8 @@ export function createSupabaseStore(url: string, serviceRoleKey: string): Store 
       const profile = buildProfile(input);
       let { error } = await supabase.from("profiles").insert(profileRow(profile));
       if (missingContacts(error)) {
-        const { contacts: _skip, ...legacy } = profileRow(profile);
+        const legacy: Partial<ReturnType<typeof profileRow>> = profileRow(profile);
+        delete legacy.contacts;
         ({ error } = await supabase.from("profiles").insert(legacy));
       }
       fail(error);

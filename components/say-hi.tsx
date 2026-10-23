@@ -6,7 +6,7 @@ import { CHANNEL_LABEL, parseContact, type Channel } from "@/lib/survey";
 import { Icon, type IconName } from "./ui/icons";
 import { Mark } from "./ui/mark";
 
-export const CHANNEL_ICON: Record<Channel, IconName> = { whatsapp: "whatsapp", discord: "discord", instagram: "camera", email: "mail" };
+export const CHANNEL_ICON: Record<Channel, IconName> = { whatsapp: "whatsapp", discord: "discord", instagram: "instagram", email: "email" };
 
 export async function copyText(text: string): Promise<boolean> {
   try {

@@ -159,7 +159,9 @@ button, a { touch-action: manipulation; }
 .bar-title { justify-self: center; font-family: var(--font-round); font-weight: 900; font-size: 17px; }
 
 /* Icons */
-.i { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.i { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+/* v4.1i: brand glyphs are filled, single colour (currentColor), never stroked. */
+.i-brand { fill: currentColor; stroke: none; }
 
 /* Person marks: one rounded square; hue + initial + a small dot vary; state lives on the mark. */
 .hue-1 { --hb: var(--h1-tint); --hf: var(--h1-deep); }
@@ -391,7 +393,8 @@ dialog.sheet.closing::backdrop { animation: fade-out 0.24s ease-in both; }
 .app-chip .i { width: 17px; height: 17px; }
 .app-tile { width: 44px; height: 44px; border-radius: 40%; display: grid; place-items: center; flex: none; background: var(--fill); color: var(--ink); }
 .app-tile .i { width: 22px; height: 22px; }
-.app-tile.live-tile { background: var(--live-tint); color: var(--live-deep); }
+/* v4.1i: the glyph stays ink on the live tint; a fern-green WhatsApp mark would be a recoloured logo. */
+.app-tile.live-tile { background: var(--live-tint); color: var(--ink); }
 .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.95em; }
 
 /* .item is unlayered, so Tailwind's items-center can't override it; make it explicit. */
@@ -553,6 +556,14 @@ dialog.sheet:focus, dialog.sheet:focus-visible { outline: none; }
 .lq:not(.lq-ready) [aria-current="page"] .lq-on, .lq:not(.lq-ready) [aria-checked="true"] .lq-on { opacity: 1; }
 .lq:not(.lq-ready) [aria-current="page"] .lq-lbl:not(.lq-on), .lq:not(.lq-ready) [aria-checked="true"] .lq-lbl:not(.lq-on) { opacity: 0; }
 
+/* v4.1i: compositor motion. The track is a layout + paint boundary, so a moving pill never invalidates the
+   card around it; the tab bar keeps its glass shadow and keyboard-hide transform, so layout only. WAAPI promotes
+   the pill and labels while they animate; during a drag (direct writes) we promote them ourselves. */
+.seg.lq { contain: layout paint; }
+.tabbar.lq { contain: layout; }
+.lq.is-dragging .lq-pill, .lq.is-dragging .lq-lens { will-change: transform; }
+.lq.is-dragging .lq-lbl { will-change: opacity; }
+
 /* v4.1h organiser pages (D33, D34). */
 .org-link { display: block; width: 100%; height: 40px; padding: 0 12px; border-radius: 12px; background: var(--fill); color: var(--ink); font: 500 13px/40px ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 .org-once { display: flex; gap: 8px; margin: 12px 8px 0; font-size: 14px; line-height: 20px; color: var(--muted); }
@@ -562,3 +573,8 @@ dialog.sheet:focus, dialog.sheet:focus-visible { outline: none; }
 @media (min-height: 1000px) { .org-danger { margin-top: 420px; } }
 .btn-outline-quiet { background: transparent; color: var(--hot); box-shadow: inset 0 0 0 1px var(--line); font-size: 15px; font-weight: 600; }
 .btn-outline-quiet:disabled { background: transparent; color: var(--faint); }
+
+/* v4.1i: Appearance crossfade. Colours ease for ~200ms when the theme changes from the Appearance control. */
+.af-theme-fade, .af-theme-fade *, .af-theme-fade *::before, .af-theme-fade *::after {
+  transition: background-color 0.2s ease-out, color 0.2s ease-out, border-color 0.2s ease-out, fill 0.2s ease-out, stroke 0.2s ease-out !important;
+}

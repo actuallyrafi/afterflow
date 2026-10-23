@@ -176,7 +176,7 @@ On the local branch v4-redesign. Preview only, not production. Pixel's motion sp
 - Segment buttons are 38px (a 44px target with the control's padding). Tabs are at least 50px. The contact tabs still show their filled dots, and tapping never draws a focus ring. Arrow keys, Home and End move through the options.
 - 120 tests pass. 75 cross-engine checks pass in each of Chromium, Firefox and WebKit.
 
-### 23 Oct 2026, 16:40 BST — v4.1h: organiser access per event, and a safer delete
+### 23 Oct 2026, 16:22 BST — v4.1h: organiser access per event, and a safer delete
 
 On the local branch v4-redesign. Preview only, not production. Per Tanvir, from his screenshot of the organiser page.
 
@@ -186,3 +186,14 @@ On the local branch v4-redesign. Preview only, not production. Per Tanvir, from 
 - Grok Bot London is built in. Cards and connections from before events shipped count for it, so its totals carry on without any data being moved.
 - Keys are 256-bit, stored only as a hash, checked in constant time. A wrong key, a wrong code and an unknown event all get the same answer, and repeated wrong tries are slowed down. Organiser pages are never cached or indexed, and the service worker never stores them.
 - 131 tests pass. 88 cross-engine checks pass in each of Chromium, Firefox and WebKit.
+
+### 23 Oct 2026, 16:35 BST — v4.1i: smoother motion and the real app logos
+
+On the local branch v4-redesign. Preview only, not production. From Pixel's motion and icon patch, reviewed and adjusted.
+
+- The sliding pills (tab bar, contact apps, Appearance, calendar times) now move on the graphics compositor, so they stay smooth when the page is busy. A tap mid-glide redirects the pill from where it is.
+- WhatsApp, Discord and Instagram show their official logos (Simple Icons, CC0), filled in the text colour. Email gets its own envelope. The licence and trademark note are in `licenses/simple-icons/`.
+- Every line icon is a touch lighter (stroke 1.75). Checked on the main screens in light and dark.
+- Appearance: Pixel's patch waited for the pill to land (about 0.4s) before changing the colours, which felt slow. Now the colours start changing about 30ms after the tap with a short crossfade, while the pill finishes its glide.
+- The contact app switch takes effect at once too, so typing straight after a tap goes into the right app's field. The calendar time still commits when its pill lands.
+- 136 tests pass. 90 cross-engine checks pass in each of Chromium, Firefox and WebKit.

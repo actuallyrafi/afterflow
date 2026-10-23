@@ -139,4 +139,4 @@ Afterflow was built solo with a small team of agents, and every step is logged w
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). The WhatsApp, Discord and Instagram glyphs come from Simple Icons (CC0-1.0); see [licenses/simple-icons](licenses/simple-icons/README.md). The marks are trademarks of their owners.

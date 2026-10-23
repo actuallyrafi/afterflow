@@ -178,7 +178,6 @@ export function CalendarReminder({
               className="lq-opt"
               aria-checked={reminder.time === option}
               tabIndex={reminder.time === option ? 0 : -1}
-              onClick={() => setTime(option)}
             >
               <LiquidLabel>{option.replace(/^0/, "")}</LiquidLabel>
             </button>

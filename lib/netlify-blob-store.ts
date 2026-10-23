@@ -117,7 +117,8 @@ export function guardReads(client: GuardedClient, looseClient: BlobClient, capMs
     const first = await capped(orMissing(key, originalGet(key, options), options), capMs);
     if (first === "__missing__") return null;
     if (first !== "__timeout__") return first;
-    const { consistency: _ignored, ...rest } = options ?? {};
+    const rest = { ...(options ?? {}) };
+    delete rest.consistency;
     const second = await capped(orMissing(key, looseClient.get(key, rest)), capMs);
     return second === "__timeout__" || second === "__missing__" ? null : second;
   }) as BlobClient["get"];
