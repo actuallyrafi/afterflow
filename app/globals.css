@@ -305,3 +305,63 @@ dialog.sheet.closing::backdrop { animation: fade-out 0.24s ease-in both; }
 /* Demo label: a hairline capsule beside a name, legible in both schemes. */
 .demo-tag { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; margin-left: 6px; border-radius: 999px; font-family: var(--font-inter), system-ui, sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; line-height: 1; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); vertical-align: 2px; white-space: nowrap; flex: none; }
 .plate .demo-tag, .demo-tag.on-plate { background: var(--panel); box-shadow: none; }
+
+/* v4.1 tab bar: Your people, Events, My card. A floating glass capsule, safe-area aware. */
+.tabbar {
+  position: fixed; z-index: 25; left: 50%; transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom) + 10px); width: calc(100% - 32px); max-width: 408px;
+  height: 62px; padding: 5px; border-radius: 31px; display: flex; gap: 2px;
+}
+.tab {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border-radius: 26px; color: var(--muted); font-size: 11px; line-height: 13px; font-weight: 600; letter-spacing: 0.01em;
+  transition: background-color 0.2s, color 0.2s, transform 0.12s;
+}
+.tab .i { width: 24px; height: 24px; }
+.tab[data-active] { color: var(--ink); background: color-mix(in srgb, var(--fill) 88%, transparent); }
+.tab[data-active] .i { stroke-width: 2.3; }
+.tab:active { transform: scale(0.96); }
+.tab:focus-visible { outline-offset: -3px; border-radius: 26px; }
+.with-tabbar .shell { padding-bottom: calc(env(safe-area-inset-bottom) + 108px); }
+.with-tabbar .toast { bottom: calc(env(safe-area-inset-bottom) + 84px); }
+@media (prefers-contrast: more) { .tab[data-active] { background: var(--ink); color: var(--on-ink); } }
+@media (prefers-color-scheme: dark) { .tab[data-active] { background: color-mix(in srgb, var(--fill) 92%, transparent); } }
+
+/* Pull-down menu (event picker): a floating glass list anchored to its pill. */
+.menu {
+  position: absolute; z-index: 40; top: calc(100% + 8px); left: 0; min-width: 248px; max-width: min(320px, calc(100vw - 32px));
+  max-height: 60vh; overflow: auto; border-radius: 22px; padding: 6px; transform-origin: top left; animation: menu-in 0.22s var(--ease-sheet) both;
+}
+.menu [role="menuitemradio"], .menu [role="menuitem"] {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border-radius: 16px;
+  font-size: 16px; line-height: 21px; text-align: left; color: var(--ink);
+}
+.menu [role="menuitemradio"]:hover, .menu [role="menuitem"]:hover, .menu [role="menuitemradio"]:focus-visible, .menu [role="menuitem"]:focus-visible {
+  background: color-mix(in srgb, var(--fill) 80%, transparent); outline: none;
+}
+.menu hr { border: 0; border-top: 0.5px solid var(--line); margin: 5px 8px; }
+.menu .tick { width: 18px; flex: none; }
+@keyframes menu-in { from { opacity: 0; transform: scale(0.96) translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .menu { animation-name: fade-in !important; } }
+.pill-button { height: 34px; padding: 0 12px 0 14px; font-size: 14px; gap: 4px; background: var(--panel); }
+.pill-button[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--ink); }
+
+/* Contact rows on the card form: one per app, a star for the one to try first. */
+.contact-row { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 14px; min-height: 60px; }
+.contact-row + .contact-row::before { content: ""; position: absolute; top: 0; left: 54px; right: 0; border-top: 0.5px solid var(--line); }
+.contact-row .contact-main { flex: 1; min-width: 0; }
+.contact-row .contact-label { display: block; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--muted); }
+.contact-row input { display: block; width: 100%; flex: 1; min-width: 0; font-size: 17px; line-height: 24px; background: transparent; color: var(--ink); outline: none; }
+.contact-row input::placeholder { color: var(--faint); }
+.contact-row:focus-within { background: color-mix(in srgb, var(--fill) 45%, transparent); }
+.star { width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; color: var(--faint); flex: none; }
+.star[aria-pressed="true"] { color: var(--h2-deep); }
+.star[aria-pressed="true"] .i { fill: currentColor; }
+.star:disabled { opacity: 0.35; }
+.app-chip { width: 30px; height: 30px; border-radius: 40%; display: grid; place-items: center; flex: none; background: var(--hb); color: var(--hf); }
+.app-chip .i { width: 17px; height: 17px; }
+@media (prefers-color-scheme: dark) { .star[aria-pressed="true"] { color: var(--h2-tint); } }
+
+/* .item is unlayered, so Tailwind's items-center can't override it; make it explicit. */
+.item.items-center { align-items: center; }
+.item.items-center .i { margin-top: 0; }

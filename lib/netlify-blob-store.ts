@@ -1,4 +1,5 @@
 import { getStore as getBlobStore, type Store as NetlifyStore } from "@netlify/blobs";
+import { normalizeEventBook, type EventBook } from "./events";
 import {
   applyMatchPatch,
   applyProfilePatch,
@@ -58,6 +59,10 @@ function blockKey(blockerId: string, blockedId: string) {
 }
 function blockedByKey(blockedId: string, blockerId: string) {
   return `blockedby/${blockedId}/${blockerId}`;
+}
+/** v4.1: one private book of events per person. Builds before v4.1 never read or write these keys. */
+function eventBookKey(profileId: string) {
+  return `eventbooks/${profileId}`;
 }
 
 function openClient(): BlobClient {
@@ -256,6 +261,7 @@ export function createNetlifyBlobStore(injected?: BlobClient): Store {
         if (profile.secretToken) await blobs().delete(tokenKey(profile.secretToken));
         if (profile.publicId) await blobs().delete(publicKey(profile.publicId));
       }
+      await blobs().delete(eventBookKey(id));
       await blobs().delete(profileKey(id));
     },
 
@@ -333,6 +339,25 @@ export function createNetlifyBlobStore(injected?: BlobClient): Store {
         ...theirs.map((blockerId) => readBlock(blockerId, profileId)),
       ]);
       return rows.filter((row): row is BlockRecord => Boolean(row));
+    },
+
+    async readEventBook(profileId: string) {
+      const data = await blobs().get(eventBookKey(profileId), { type: "json", ...STRONG });
+      return data ? normalizeEventBook(data) : null;
+    },
+
+    async updateEventBook(profileId: string, mutate: (current: EventBook | null) => EventBook | null) {
+      const key = eventBookKey(profileId);
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const current = await blobs().getWithMetadata(key, { type: "json", ...STRONG });
+        const book = current?.data ? normalizeEventBook(current.data) : null;
+        const next = mutate(book);
+        if (!next) return book;
+        const options = current?.etag ? { onlyIfMatch: current.etag } : current ? undefined : { onlyIfNew: true };
+        const wrote = await blobs().setJSON(key, next, options);
+        if (wrote.modified || (current && !current.etag)) return next;
+      }
+      throw new Error("Could not save your events. Try again.");
     },
 
     async deleteDemos() {

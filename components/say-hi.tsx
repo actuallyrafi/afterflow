@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { defaultOpener, firstOf, handoffFor } from "@/lib/handoff";
+import { defaultOpener, firstOf, planHandoff, type Handoff } from "@/lib/handoff";
 import { CHANNEL_LABEL } from "@/lib/survey";
 import { Icon, type IconName } from "./ui/icons";
 import { Mark } from "./ui/mark";
 
 const CHANNEL_ICON: Record<string, IconName> = { whatsapp: "chat", discord: "chat", instagram: "camera", email: "mail" };
+const CHANNEL_HUE: Record<string, number> = { whatsapp: 3, discord: 4, instagram: 5, email: 2 };
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -30,23 +31,28 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-/** Say hi: an editable, prefilled opener and one way out to an app you already use. */
+/**
+ * Say hi: an editable, prefilled opener and a way out to an app you already use.
+ * An app you both use goes first; otherwise theirs, in the order they chose.
+ */
 export function SayHi({
   connectionId,
   theirName,
   theirSeed,
-  contact,
+  contacts,
+  myContacts,
   myName,
 }: {
   connectionId: string;
   theirName: string;
   theirSeed: string;
-  contact: string;
+  contacts: string[];
+  myContacts: string[];
   myName: string;
 }) {
   const storageKey = `afterflow.opener.${connectionId}`;
   const [message, setMessage] = useState(() => defaultOpener(theirName, myName));
-  const [copied, setCopied] = useState<"message" | "handle" | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
   const area = useRef<HTMLTextAreaElement>(null);
   const first = firstOf(theirName);
 
@@ -72,7 +78,9 @@ export function SayHi({
     return () => window.clearTimeout(timer);
   }, [copied]);
 
-  const hand = handoffFor(contact, theirName, message);
+  const plan = planHandoff(contacts, myContacts, theirName, message);
+  const hand = plan.options[0];
+  const others = plan.options.slice(1);
 
   function edit(value: string) {
     setMessage(value);
@@ -83,9 +91,11 @@ export function SayHi({
     }
   }
 
-  async function copy(kind: "message" | "handle") {
-    if (await copyText(kind === "message" ? message : hand.display)) setCopied(kind);
+  async function copy(kind: string, text: string) {
+    if (await copyText(text)) setCopied(kind);
   }
+
+  if (!hand) return null;
 
   return (
     <section className="panel mt-2.5 p-4" aria-labelledby="say-hi-title">
@@ -94,8 +104,17 @@ export function SayHi({
         <h2 id="say-hi-title" className="round flex-1 text-[18px] font-extrabold">
           Say hi
         </h2>
-        <span className="pill channel hue-3">{CHANNEL_LABEL[hand.channel]}</span>
+        <span className={`pill channel hue-${CHANNEL_HUE[hand.channel]}`}>{CHANNEL_LABEL[hand.channel]}</span>
       </div>
+      {plan.shared ? (
+        <p className="mt-2 text-[15px] leading-[21px]">
+          You both use {CHANNEL_LABEL[plan.shared]}. Say hi there.
+        </p>
+      ) : others.length ? (
+        <p className="mt-2 text-[15px] leading-[21px]">
+          {first} likes {CHANNEL_LABEL[hand.channel]} best.
+        </p>
+      ) : null}
       <label className="sr-only" htmlFor="opener">
         Message to {first}
       </label>
@@ -116,7 +135,7 @@ export function SayHi({
             <span className="block text-[12px] font-semibold text-muted">{first}&apos;s {CHANNEL_LABEL[hand.channel]}</span>
             <span className="block truncate text-[15px] font-medium">{hand.display}</span>
           </span>
-          <button type="button" className="btn btn-sm btn-fill bg-panel" onClick={() => void copy("handle")}>
+          <button type="button" className="btn btn-sm btn-fill bg-panel" onClick={() => void copy("handle", hand.display)}>
             {copied === "handle" ? "Copied" : "Copy"}
           </button>
         </div>
@@ -137,7 +156,7 @@ export function SayHi({
             <span className="truncate">{hand.label}</span>
           </a>
         ) : (
-          <button type="button" className="btn btn-ink min-w-0 flex-1" onClick={() => void copy("message")}>
+          <button type="button" className="btn btn-ink min-w-0 flex-1" onClick={() => void copy("message", message)}>
             <Icon name={copied === "message" ? "check" : "copy"} />
             {copied === "message" ? "Copied" : "Copy message"}
           </button>
@@ -147,7 +166,7 @@ export function SayHi({
             type="button"
             className="btn btn-fill btn-icon"
             aria-label={copied === "message" ? "Copied" : "Copy message"}
-            onClick={() => void copy("message")}
+            onClick={() => void copy("message", message)}
           >
             <Icon name={copied === "message" ? "check" : "copy"} />
           </button>
@@ -156,9 +175,53 @@ export function SayHi({
       {hand.copyFirst && hand.href ? (
         <p className="mt-2 text-[12px] text-muted">We copy your message first, so you can paste it in.</p>
       ) : null}
+      {others.length ? (
+        <div className="mt-4">
+          <h3 className="mx-0.5 mb-1.5 text-[13px] font-semibold text-muted">Or reach {first} on</h3>
+          <ul className="overflow-hidden rounded-[18px] bg-bg">
+            {others.map((option) => (
+              <li key={option.channel}>
+                <OtherWay option={option} copied={copied === option.channel} onCopy={() => void copy(option.channel, option.display)} onOpen={() => {
+                  if (option.copyFirst) void copyText(message).then((ok) => ok && setCopied("message"));
+                }} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <p className="sr-only" role="status" aria-live="polite">
-        {copied === "message" ? "Message copied" : copied === "handle" ? "Copied" : ""}
+        {copied === "message" ? "Message copied" : copied ? "Copied" : ""}
       </p>
     </section>
+  );
+}
+
+function OtherWay({ option, copied, onCopy, onOpen }: { option: Handoff; copied: boolean; onCopy: () => void; onOpen: () => void }) {
+  return (
+    <div className="contact-row !min-h-[58px] !py-2 !pr-2 !pl-3">
+      <span className={`app-chip hue-${CHANNEL_HUE[option.channel]}`}>
+        <Icon name={CHANNEL_ICON[option.channel]} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[12px] font-semibold text-muted">{CHANNEL_LABEL[option.channel]}</span>
+        <span className="block truncate text-[15px] font-medium">{option.display}</span>
+      </span>
+      {option.href && option.label ? (
+        <a
+          href={option.href}
+          target={option.channel === "email" ? undefined : "_blank"}
+          rel="noopener noreferrer"
+          className="btn btn-sm btn-fill bg-panel"
+          aria-label={option.label}
+          onClick={onOpen}
+        >
+          {option.channel === "email" ? "Email" : "Open"}
+        </a>
+      ) : (
+        <button type="button" className="btn btn-sm btn-fill bg-panel" onClick={onCopy} aria-label={`Copy ${CHANNEL_LABEL[option.channel]} username`}>
+          {copied ? "Copied" : "Copy"}
+        </button>
+      )}
+    </div>
   );
 }

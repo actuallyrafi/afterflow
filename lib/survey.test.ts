@@ -4,12 +4,17 @@ import { CONSENT_TEXT, normalizeContact, parseContact, QUESTION, QUESTION_HELP, 
 
 const ok = { name: "Sam", channel: "whatsapp", contact: "07700 900123", answer: "Running a supper club", consent: true };
 
-test("the card is a name, one way to reach you, one question and consent", () => {
+test("the card is a name, ways to reach you (preferred first), one question and consent", () => {
   const parsed = validateSubmission(ok);
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
-  assert.deepEqual(parsed.value, { name: "Sam", contact: "whatsapp:+447700900123", answer: "Running a supper club" });
-  assert.deepEqual(Object.keys(parsed.value).sort(), ["answer", "contact", "name"]);
+  assert.deepEqual(parsed.value, {
+    name: "Sam",
+    contact: "whatsapp:+447700900123",
+    contacts: ["whatsapp:+447700900123"],
+    answer: "Running a supper club",
+  });
+  assert.deepEqual(Object.keys(parsed.value).sort(), ["answer", "contact", "contacts", "name"]);
   assert.equal(QUESTION, "What's something you're into right now?");
   assert.equal(QUESTION_HELP, "A project, a hobby, a place — anything.");
 });

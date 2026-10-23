@@ -92,6 +92,34 @@ const paths = {
     </>
   ),
   pencil: <path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" />,
+  calendar: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="4" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </>
+  ),
+  calendarPlus: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="4" />
+      <path d="M3.5 10h17M8 3v4M16 3v4M12 13v5M9.5 15.5h5" />
+    </>
+  ),
+  star: <path d="M12 3.8l2.5 5.1 5.6.8-4 3.9.9 5.6-5-2.6-5 2.6.9-5.6-4-3.9 5.6-.8z" />,
+  chevDown: <path d="M6 9.5l6 6 6-6" />,
+  card: (
+    <>
+      <rect x="3.5" y="5" width="17" height="14" rx="4" />
+      <circle cx="9" cy="11" r="2" />
+      <path d="M6 16c.6-1.5 1.7-2.2 3-2.2s2.4.7 3 2.2M14.5 10h3M14.5 13.5h3" />
+    </>
+  ),
+  pin: (
+    <>
+      <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z" />
+      <circle cx="12" cy="10" r="2.3" />
+    </>
+  ),
+  folder: <path d="M3.5 7.5a2.5 2.5 0 012.5-2.5h3.6l2 2.2H18a2.5 2.5 0 012.5 2.5v7.8A2.5 2.5 0 0118 20H6a2.5 2.5 0 01-2.5-2.5z" />,
 } as const;
 
 export type IconName = keyof typeof paths;

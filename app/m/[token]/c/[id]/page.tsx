@@ -5,17 +5,21 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { NoteCard } from "@/components/note-card";
-import { PersonSheet } from "@/components/person-sheet";
+import { CalendarReminderCard } from "@/components/calendar-reminder";
+import { PersonSheet, type Step } from "@/components/person-sheet";
 import { SayHi } from "@/components/say-hi";
 import { stashToast, Toast, TopBar, useToast } from "@/components/ui/chrome";
 import { Icon } from "@/components/ui/icons";
 import { hueOf, Mark } from "@/components/ui/mark";
 import { api, shortDate } from "@/lib/api";
-import type { ConnectionCard } from "@/lib/connections";
-import { EVENT_LINE, EVENT_SHORT } from "@/lib/event";
+import type { ConnectionCard, EventsView } from "@/lib/connections";
 import { firstOf } from "@/lib/handoff";
 
-type Loaded = { connection: ConnectionCard; me: { name: string; isDemo: boolean } };
+type Loaded = {
+  connection: ConnectionCard;
+  me: { name: string; isDemo: boolean; contacts: string[]; reminders: boolean };
+  events: EventsView;
+};
 
 export default function ConnectionPage() {
   const { token, id } = useParams<{ token: string; id: string }>();
@@ -23,6 +27,7 @@ export default function ConnectionPage() {
   const [data, setData] = useState<Loaded | null>(null);
   const [missing, setMissing] = useState(false);
   const [sheet, setSheet] = useState(false);
+  const [sheetStep, setSheetStep] = useState<Step>("menu");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -69,6 +74,38 @@ export default function ConnectionPage() {
     return result.data;
   }
 
+  async function fileUnder(eventId: string | null, created?: { name: string; date: string }) {
+    setBusy(true);
+    setError("");
+    let target = eventId;
+    if (created) {
+      const made = await api<EventsView & { eventId?: string }>(`/api/profiles/${token}/events`, {
+        method: "POST",
+        body: { action: "create", name: created.name, date: created.date },
+      });
+      if (!made.ok || !made.data.eventId) {
+        setBusy(false);
+        setError(made.data.error || "Couldn't make that event. Try again.");
+        setSheet(false);
+        return;
+      }
+      target = made.data.eventId;
+    }
+    const result = await api<EventsView>(`/api/profiles/${token}/events`, {
+      method: "POST",
+      body: { action: "file", connectionId: id, eventId: target },
+    });
+    setBusy(false);
+    setSheet(false);
+    if (!result.ok || !result.data.events) {
+      setError(result.data.error || "Couldn't move them. Try again.");
+      return;
+    }
+    const label = result.data.events.find((event) => event.id === target)?.label;
+    setData((current) => (current ? { ...current, events: result.data, connection: { ...current.connection, eventId: target } } : current));
+    show(label ? `Moved to ${label}` : "Not in an event now");
+  }
+
   if (missing) {
     return (
       <main className="shell page-top flex flex-col items-center justify-center pb-24 text-center">
@@ -94,10 +131,16 @@ export default function ConnectionPage() {
     );
   }
 
-  const { connection, me } = data;
+  const { connection, me, events } = data;
   const other = connection.other;
   const first = firstOf(other.name);
-  const contact = other.contact ?? "";
+  const contacts = other.contacts?.length ? other.contacts : other.contact ? [other.contact] : [];
+  const filedEvent = events.events.find((event) => event.id === connection.eventId) ?? null;
+  const metLine = filedEvent ? `Met at ${filedEvent.label}` : `Met ${shortDate(connection.metAt)}`;
+  const openSheet = (step: Step) => {
+    setSheetStep(step);
+    setSheet(true);
+  };
 
   return (
     <main className="shell page-top pb-16">
@@ -105,7 +148,7 @@ export default function ConnectionPage() {
         alwaysGlass
         left={<BackLink href={home} plain />}
         center={
-          <button type="button" className="namepill glass" onClick={() => setSheet(true)} aria-haspopup="dialog">
+          <button type="button" className="namepill glass" onClick={() => openSheet("menu")} aria-haspopup="dialog">
             <Mark name={other.name} seed={other.publicId} size={30} state={connection.muted ? "muted" : undefined} />
             <span>{other.name}</span>
             {other.isDemo ? <DemoTag /> : null}
@@ -117,7 +160,7 @@ export default function ConnectionPage() {
             className="circle"
             aria-label={`More options for ${first}`}
             aria-haspopup="dialog"
-            onClick={() => setSheet(true)}
+            onClick={() => openSheet("menu")}
           >
             <Icon name="more" />
           </button>
@@ -125,7 +168,18 @@ export default function ConnectionPage() {
       />
 
       <div className="rise">
-        <p className="event-line mt-1.5">Met at {EVENT_LINE}</p>
+        <p className="event-line mt-1.5">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 hover:text-ink"
+            aria-haspopup="dialog"
+            aria-label={`${metLine}. Change event`}
+            onClick={() => openSheet("event")}
+          >
+            {metLine}
+            <Icon name="chevDown" size={14} />
+          </button>
+        </p>
         {other.isDemo || me.isDemo ? (
           <p className="-mt-1.5 mb-3 text-center text-[12px] text-muted">
             <DemoTag className="!ml-0 mr-1.5" />
@@ -144,7 +198,7 @@ export default function ConnectionPage() {
         </div>
       ) : (
         <p className="event-line">
-          {first} didn&apos;t add anything yet. You met at {EVENT_SHORT} — that&apos;s plenty to start with.
+          {first} didn&apos;t add anything yet. You met{filedEvent ? ` at ${filedEvent.name}` : ""} — that&apos;s plenty to start with.
         </p>
       )}
       {connection.myAnswer ? (
@@ -175,8 +229,20 @@ export default function ConnectionPage() {
             />
           </div>
           <div className="rise" style={{ animationDelay: "200ms" }}>
-            <SayHi connectionId={connection.id} theirName={other.name} theirSeed={other.publicId} contact={contact} myName={me.name} />
+            <SayHi
+              connectionId={connection.id}
+              theirName={other.name}
+              theirSeed={other.publicId}
+              contacts={contacts}
+              myContacts={me.contacts}
+              myName={me.name}
+            />
           </div>
+          {me.reminders && !connection.muted ? (
+            <div className="rise" style={{ animationDelay: "240ms" }}>
+              <CalendarReminderCard token={token} connectionId={connection.id} theirName={other.name} metAt={connection.metAt} />
+            </div>
+          ) : null}
           <div className="flex items-center justify-between gap-3 px-1.5 pt-4">
             {connection.talkedAgain ? (
               <span className="flex items-center gap-1.5 text-[15px]">
@@ -291,6 +357,12 @@ export default function ConnectionPage() {
         muted={connection.muted}
         isDemo={other.isDemo}
         busy={busy}
+        metLine={metLine}
+        events={events.events}
+        eventId={connection.eventId}
+        initialStep={sheetStep}
+        onFile={(eventId) => void fileUnder(eventId)}
+        onCreateAndFile={(name, date) => void fileUnder(null, { name, date })}
         onMute={async () => {
           const wasMuted = connection.muted;
           const done = await act(wasMuted ? "unmute" : "mute");

@@ -1,14 +1,17 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { Submission } from "./survey";
+import { normalizeEventBook, type EventBook } from "./events";
+import { readContacts, type Submission } from "./survey";
 
 export type Profile = {
   id: string;
   publicId: string;
   name: string;
-  /** `channel:value`; older cards hold a bare email or Discord name. */
+  /** The preferred contact, `channel:value`; older cards hold a bare email or Discord name. */
   contact: string;
+  /** Every contact, preferred first (so `contacts[0] === contact`). Older cards read as `[contact]`. */
+  contacts: string[];
   /** "What's something you're into right now?" */
   answer: string;
   /** The one gentle reminder. Off unless the person turns it on. */
@@ -19,7 +22,7 @@ export type Profile = {
   isDemo: boolean;
 };
 
-export type ProfilePatch = Partial<Pick<Profile, "name" | "contact" | "answer" | "reminders">>;
+export type ProfilePatch = Partial<Pick<Profile, "name" | "contact" | "contacts" | "answer" | "reminders">>;
 
 export type MatchStatus = "pending" | "accepted" | "declined";
 export type FollowUp = "yes" | "not_yet" | null;
@@ -75,7 +78,10 @@ export type BlockRecord = { blockerId: string; blockedId: string; createdAt: str
 
 export type NewProfile = Submission & { isDemo?: boolean; id?: string; publicId?: string; secretToken?: string };
 
-export const STORE_VERSION = 7;
+export const STORE_VERSION = 8;
+
+/** Return the new book, or null to leave it untouched. */
+export type EventBookMutation = (current: EventBook | null) => EventBook | null;
 
 export type Store = {
   version: number;
@@ -98,6 +104,9 @@ export type Store = {
   removeBlock(blockerId: string, blockedId: string): Promise<void>;
   /** Blocks where this profile is the blocker or the blocked. */
   listBlocksFor(profileId: string): Promise<BlockRecord[]>;
+  /** This person's private events and filing. Null until they first change something. */
+  readEventBook(profileId: string): Promise<EventBook | null>;
+  updateEventBook(profileId: string, mutate: EventBookMutation): Promise<EventBook | null>;
   deleteDemos(): Promise<void>;
   deleteAll(): Promise<void>;
 };
@@ -135,11 +144,15 @@ export function normalizeProfile(raw: unknown): Profile | null {
   const row = raw as Record<string, unknown>;
   const id = str(row.id);
   if (!id) return null;
+  // `contact` stays the source of truth for the preferred method, so a build that only knows
+  // `contact` can keep reading and writing these cards. `contacts` adds the rest.
+  const contacts = readContacts(str(row.contact), row.contacts);
   return {
     id,
     publicId: str(row.publicId ?? row.public_id),
     name: str(row.name).trim() || "Someone",
-    contact: str(row.contact),
+    contact: contacts[0] ?? str(row.contact),
+    contacts,
     answer: str(row.answer ?? row.tryingTo ?? row.trying_to).trim(),
     reminders: bool(row.reminders),
     consentAt: str(row.consentAt ?? row.consent_at),
@@ -220,7 +233,8 @@ export function buildProfile(input: NewProfile): Profile {
     id: input.id || crypto.randomUUID(),
     publicId: input.publicId || crypto.randomBytes(9).toString("base64url"),
     name: input.name,
-    contact: input.contact,
+    contact: input.contacts?.[0] ?? input.contact,
+    contacts: readContacts(input.contacts?.[0] ?? input.contact, input.contacts ?? []),
     answer: input.answer,
     reminders: false,
     consentAt: now,
@@ -240,10 +254,16 @@ export function applyMatchPatch(row: MatchRow, patch: MatchPatch): MatchRow {
 }
 
 export function applyProfilePatch(profile: Profile, patch: ProfilePatch): Profile {
+  const contacts =
+    patch.contacts !== undefined
+      ? readContacts(patch.contacts[0] ?? patch.contact ?? profile.contact, patch.contacts)
+      : patch.contact !== undefined
+        ? readContacts(patch.contact, [])
+        : null;
   return {
     ...profile,
     ...(patch.name !== undefined ? { name: patch.name } : {}),
-    ...(patch.contact !== undefined ? { contact: patch.contact } : {}),
+    ...(contacts && contacts.length ? { contact: contacts[0], contacts } : {}),
     ...(patch.answer !== undefined ? { answer: patch.answer } : {}),
     ...(patch.reminders !== undefined ? { reminders: patch.reminders } : {}),
   };
@@ -313,7 +333,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   created_at TEXT NOT NULL,
   secret_token TEXT NOT NULL UNIQUE,
   is_demo INTEGER NOT NULL DEFAULT 0,
-  reminders INTEGER NOT NULL DEFAULT 0
+  reminders INTEGER NOT NULL DEFAULT 0,
+  contacts TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS matches (
   id TEXT PRIMARY KEY,
@@ -340,6 +361,11 @@ CREATE TABLE IF NOT EXISTS blocks (
   blocked_id TEXT NOT NULL,
   created_at TEXT NOT NULL,
   PRIMARY KEY (blocker_id, blocked_id)
+);
+CREATE TABLE IF NOT EXISTS event_books (
+  profile_id TEXT PRIMARY KEY,
+  data TEXT NOT NULL DEFAULT '{}',
+  updated_at TEXT NOT NULL
 );
 `;
 
@@ -378,6 +404,8 @@ function openSqlite(filename: string): SqliteDb {
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS profiles_public_idx ON profiles (public_id)");
   if (!profileColumns.has("linkedin")) db.exec("ALTER TABLE profiles ADD COLUMN linkedin TEXT NOT NULL DEFAULT ''");
   if (!profileColumns.has("reminders")) db.exec("ALTER TABLE profiles ADD COLUMN reminders INTEGER NOT NULL DEFAULT 0");
+  // v4.1: extra contact methods. Old rows keep '' and read as their single `contact`.
+  if (!profileColumns.has("contacts")) db.exec("ALTER TABLE profiles ADD COLUMN contacts TEXT NOT NULL DEFAULT ''");
   return db;
 }
 
@@ -409,14 +437,15 @@ function createSqliteStore(filename: string): Store {
     async createProfile(input) {
       const profile = buildProfile(input);
       db.prepare(
-        `INSERT INTO profiles (id, public_id, name, contact, trying_to, consent_at, created_at, secret_token, is_demo, reminders,
+        `INSERT INTO profiles (id, public_id, name, contact, contacts, trying_to, consent_at, created_at, secret_token, is_demo, reminders,
            linkedin, role, offers, top_offer, needs, top_need, availability)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', '[]', '', '[]', '', '')`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', '[]', '', '[]', '', '')`,
       ).run(
         profile.id,
         profile.publicId,
         profile.name,
         profile.contact,
+        JSON.stringify(profile.contacts),
         profile.answer,
         profile.consentAt,
         profile.createdAt,
@@ -446,9 +475,10 @@ function createSqliteStore(filename: string): Store {
       const current = await store.getProfileById(id);
       if (!current) return null;
       const next = applyProfilePatch(current, patch);
-      db.prepare("UPDATE profiles SET name = ?, contact = ?, trying_to = ?, reminders = ? WHERE id = ?").run(
+      db.prepare("UPDATE profiles SET name = ?, contact = ?, contacts = ?, trying_to = ?, reminders = ? WHERE id = ?").run(
         next.name,
         next.contact,
+        JSON.stringify(next.contacts),
         next.answer,
         next.reminders ? 1 : 0,
         id,
@@ -458,6 +488,7 @@ function createSqliteStore(filename: string): Store {
     async deleteProfile(id) {
       db.prepare("DELETE FROM matches WHERE a_id = ? OR b_id = ?").run(id, id);
       db.prepare("DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?").run(id, id);
+      db.prepare("DELETE FROM event_books WHERE profile_id = ?").run(id);
       db.prepare("DELETE FROM profiles WHERE id = ?").run(id);
     },
     async createMatch(input) {
@@ -539,23 +570,38 @@ function createSqliteStore(filename: string): Store {
           createdAt: String(row.created_at),
         }));
     },
+    async readEventBook(profileId) {
+      const row = db.prepare("SELECT data FROM event_books WHERE profile_id = ?").get(profileId);
+      return row ? normalizeEventBook(row.data) : null;
+    },
+    async updateEventBook(profileId, mutate) {
+      const current = await store.readEventBook(profileId);
+      const next = mutate(current);
+      if (!next) return current;
+      db.prepare(
+        `INSERT INTO event_books (profile_id, data, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(profile_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
+      ).run(profileId, JSON.stringify(next), new Date().toISOString());
+      return next;
+    },
     async deleteDemos() {
       db.exec(`
         DELETE FROM matches WHERE a_id IN (SELECT id FROM profiles WHERE is_demo = 1)
           OR b_id IN (SELECT id FROM profiles WHERE is_demo = 1);
         DELETE FROM blocks WHERE blocker_id IN (SELECT id FROM profiles WHERE is_demo = 1)
           OR blocked_id IN (SELECT id FROM profiles WHERE is_demo = 1);
+        DELETE FROM event_books WHERE profile_id IN (SELECT id FROM profiles WHERE is_demo = 1);
         DELETE FROM profiles WHERE is_demo = 1;
       `);
     },
     async deleteAll() {
-      db.exec("DELETE FROM matches; DELETE FROM blocks; DELETE FROM profiles;");
+      db.exec("DELETE FROM matches; DELETE FROM blocks; DELETE FROM event_books; DELETE FROM profiles;");
     },
   };
   return store;
 }
 
-type JsonDb = { profiles: Profile[]; matches: MatchRow[]; blocks: BlockRecord[] };
+type JsonDb = { profiles: Profile[]; matches: MatchRow[]; blocks: BlockRecord[]; eventBooks: Record<string, EventBook> };
 
 function createJsonStore(filename: string): Store {
   fs.mkdirSync(path.dirname(filename), { recursive: true });
@@ -566,9 +612,14 @@ function createJsonStore(filename: string): Store {
         profiles: (parsed.profiles ?? []).map(normalizeProfile).filter((row): row is Profile => Boolean(row)),
         matches: (parsed.matches ?? []).map(normalizeMatch).filter((row): row is MatchRow => Boolean(row)),
         blocks: (parsed.blocks ?? []) as BlockRecord[],
+        eventBooks: Object.fromEntries(
+          Object.entries(((parsed as Record<string, unknown>).eventBooks ?? {}) as Record<string, unknown>)
+            .map(([id, book]) => [id, normalizeEventBook(book)] as const)
+            .filter((entry): entry is [string, EventBook] => Boolean(entry[1])),
+        ),
       };
     } catch {
-      return { profiles: [], matches: [], blocks: [] };
+      return { profiles: [], matches: [], blocks: [], eventBooks: {} };
     }
   };
   const write = (data: JsonDb) => {
@@ -611,6 +662,7 @@ function createJsonStore(filename: string): Store {
       data.profiles = data.profiles.filter((profile) => profile.id !== id);
       data.matches = data.matches.filter((match) => match.aId !== id && match.bId !== id);
       data.blocks = data.blocks.filter((block) => block.blockerId !== id && block.blockedId !== id);
+      delete data.eventBooks[id];
       write(data);
     },
     async createMatch(input) {
@@ -662,16 +714,28 @@ function createJsonStore(filename: string): Store {
     async listBlocksFor(profileId) {
       return read().blocks.filter((block) => block.blockerId === profileId || block.blockedId === profileId);
     },
+    async readEventBook(profileId) {
+      return read().eventBooks[profileId] ?? null;
+    },
+    async updateEventBook(profileId, mutate) {
+      const data = read();
+      const next = mutate(data.eventBooks[profileId] ?? null);
+      if (!next) return data.eventBooks[profileId] ?? null;
+      data.eventBooks[profileId] = next;
+      write(data);
+      return next;
+    },
     async deleteDemos() {
       const data = read();
       const demoIds = new Set(data.profiles.filter((profile) => profile.isDemo).map((profile) => profile.id));
       data.matches = data.matches.filter((match) => !demoIds.has(match.aId) && !demoIds.has(match.bId));
       data.blocks = data.blocks.filter((block) => !demoIds.has(block.blockerId) && !demoIds.has(block.blockedId));
       data.profiles = data.profiles.filter((profile) => !profile.isDemo);
+      for (const id of demoIds) delete data.eventBooks[id];
       write(data);
     },
     async deleteAll() {
-      write({ profiles: [], matches: [], blocks: [] });
+      write({ profiles: [], matches: [], blocks: [], eventBooks: {} });
     },
   };
   return store;

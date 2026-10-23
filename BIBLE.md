@@ -1,5 +1,11 @@
-# AFTERFLOW — Project Bible v1.0 (binding, set by Tanvir 22 Oct 2026)
+# AFTERFLOW — Project Bible v1.1 (binding, set by Tanvir 22 Oct 2026, updated 23 Oct 2026)
 Supersedes PRD.md wherever they conflict. Changes need Tanvir's approval.
+
+## 0. Positioning
+Afterflow is the connector, not the connection. You do the connecting.
+In Tanvir's words: Afterflow is "a connector, not the connection itself; the connecting is done between the individuals." It gets two people who met to the app they already talk on, and then gets out of the way.
+Feature test: does it get two people talking somewhere else, faster? If not, it doesn't ship.
+Out: a built-in chat or messaging, feeds, and browsable profiles.
 
 ## 1. Vision
 Help people who meet in real life keep casually interacting afterwards, until strangers become familiar, and familiar can become friendship.
@@ -58,3 +64,7 @@ Dead social network -> specific community + clear reason to return. Forced inter
 
 ## 13. Standard
 Success: someone returns to ordinary life after an event and finds it easier to keep talking to the people they met. No demands to become professional contacts, join noisy communities, maintain profiles, or join artificial engagement loops. The product exists to preserve the possibility of friendship after the circumstances that created it have disappeared.
+
+## Changelog
+- v1.0, 22 Oct 2026: binding Bible set by Tanvir.
+- v1.1, 23 Oct 2026: added §0 Positioning ("Afterflow is the connector, not the connection. You do the connecting.", the "talking somewhere else, faster" test, and no built-in chat, feeds or browsable profiles). Approved by Tanvir.

@@ -2,13 +2,14 @@
 
 import { DemoTag } from "@/components/ui/demo-tag";
 import { useEffect, useRef, useState } from "react";
-import { EVENT_LINE } from "@/lib/event";
+import type { EventSummary } from "@/lib/connections";
 import { firstOf } from "@/lib/handoff";
+import { DateTile, londonToday } from "./event-sheets";
 import { Sheet } from "./ui/chrome";
 import { Icon } from "./ui/icons";
 import { Mark } from "./ui/mark";
 
-type Step = "menu" | "remove" | "block";
+export type Step = "menu" | "remove" | "block" | "event";
 
 /**
  * Mute, Remove, Block. All quiet: the other person is never told.
@@ -25,6 +26,12 @@ export function PersonSheet({
   onMute,
   onRemove,
   onBlock,
+  metLine,
+  events = [],
+  eventId = null,
+  onFile,
+  onCreateAndFile,
+  initialStep = "menu",
 }: {
   open: boolean;
   onClose: () => void;
@@ -36,15 +43,34 @@ export function PersonSheet({
   onMute: () => void;
   onRemove: () => void;
   onBlock: () => void;
+  /** "Met at Grok Bot London · 22 Oct", or "Met 24 Oct" when not in an event. */
+  metLine: string;
+  events?: EventSummary[];
+  eventId?: string | null;
+  onFile?: (eventId: string | null) => void;
+  onCreateAndFile?: (name: string, date: string) => void;
+  initialStep?: Step;
 }) {
   const [step, setStep] = useState<Step>("menu");
+  const [newName, setNewName] = useState("");
+  const [newDate, setNewDate] = useState(londonToday());
+  const [creating, setCreating] = useState(false);
+  const current = events.find((event) => event.id === eventId) ?? null;
+
+  useEffect(() => {
+    if (open) setStep(initialStep);
+  }, [open, initialStep]);
   const first = firstOf(name);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const keepRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) {
-      const timer = window.setTimeout(() => setStep("menu"), 260);
+      const timer = window.setTimeout(() => {
+        setStep("menu");
+        setCreating(false);
+        setNewName("");
+      }, 260);
       return () => window.clearTimeout(timer);
     }
   }, [open]);
@@ -60,7 +86,7 @@ export function PersonSheet({
       open={open}
       onClose={onClose}
       role={step === "block" ? "alertdialog" : "dialog"}
-      labelledBy={step === "block" ? "block-title" : step === "remove" ? "remove-title" : "sheet-title"}
+      labelledBy={step === "block" ? "block-title" : step === "remove" ? "remove-title" : step === "event" ? "event-title" : "sheet-title"}
       describedBy={step === "block" ? "block-consequences" : step === "remove" ? "remove-desc" : undefined}
     >
       {step === "menu" ? (
@@ -72,9 +98,21 @@ export function PersonSheet({
                 {name}
                 {isDemo ? <DemoTag /> : null}
               </h2>
-              <p className="text-[14px] text-muted">Met at {EVENT_LINE}</p>
+              <p className="text-[14px] text-muted">{metLine}</p>
             </div>
           </div>
+          {onFile ? (
+            <div className="group mb-2.5">
+              <button type="button" className="item items-center" onClick={() => setStep("event")} disabled={busy}>
+                <Icon name="calendar" />
+                <span className="min-w-0 flex-1">
+                  <span className="t block">Event</span>
+                  <span className="s block truncate">{current ? current.label : "Not in an event"}</span>
+                </span>
+                <Icon name="chev" className="chev mt-0.5" />
+              </button>
+            </div>
+          ) : null}
           <div className="group">
             <button type="button" className="item" onClick={onMute} disabled={busy} data-autofocus>
               <Icon name={muted ? "bell" : "bellOff"} />
@@ -104,6 +142,87 @@ export function PersonSheet({
             Cancel
           </button>
           <p className="mt-3 text-center text-[12px] text-muted">Anything already shared on WhatsApp or Discord stays there.</p>
+        </div>
+      ) : null}
+
+      {step === "event" ? (
+        <div className="swap">
+          <h2 id="event-title" className="round text-center text-[22px] leading-7 font-black">
+            Which event?
+          </h2>
+          <p className="mx-auto mt-1 mb-4 max-w-[300px] text-center text-[14px] leading-5 text-muted">
+            Only for you. {first} won&apos;t see it, and it doesn&apos;t change how {first} filed you.
+          </p>
+          <div className="group" role="radiogroup" aria-label={`Event for ${first}`}>
+            {events.map((event) => (
+              <button
+                key={event.id}
+                type="button"
+                role="radio"
+                aria-checked={eventId === event.id}
+                className="item flush items-center"
+                disabled={busy}
+                onClick={() => onFile?.(event.id)}
+                data-autofocus={eventId === event.id ? true : undefined}
+              >
+                <DateTile id={event.id} date={event.date} size={40} />
+                <span className="t min-w-0 flex-1 truncate">{event.label}</span>
+                {eventId === event.id ? <Icon name="check" /> : null}
+              </button>
+            ))}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={!eventId}
+              className="item flush items-center"
+              disabled={busy}
+              onClick={() => onFile?.(null)}
+              data-autofocus={!eventId ? true : undefined}
+            >
+              <span className="app-chip hue-4 !size-10">
+                <Icon name="minus" />
+              </span>
+              <span className="t flex-1">Not in an event</span>
+              {!eventId ? <Icon name="check" /> : null}
+            </button>
+          </div>
+          {creating ? (
+            <form
+              className="swap group mt-2.5 p-1"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (newName.trim()) onCreateAndFile?.(newName, newDate);
+              }}
+            >
+              <label className="field" htmlFor="sheet-event-name">
+                <span className="field-label">New event</span>
+                <input
+                  id="sheet-event-name"
+                  autoFocus
+                  value={newName}
+                  maxLength={60}
+                  onChange={(event) => setNewName(event.target.value)}
+                  placeholder="Name"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="field border-t-[0.5px] border-line !rounded-none" htmlFor="sheet-event-date">
+                <span className="field-label">Day</span>
+                <input id="sheet-event-date" type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} />
+              </label>
+              <button type="submit" className="btn btn-ink m-2 w-[calc(100%-16px)]" disabled={busy || !newName.trim()} aria-busy={busy}>
+                Make it and move {first}
+              </button>
+            </form>
+          ) : (
+            <button type="button" className="group mt-2.5 flex min-h-[54px] w-full items-center justify-center gap-2 text-[17px] font-semibold" onClick={() => setCreating(true)}>
+              <Icon name="plus" />
+              New event
+            </button>
+          )}
+          <button type="button" className="btn btn-plain mt-1.5 w-full" onClick={() => (initialStep === "event" ? onClose() : setStep("menu"))}>
+            {initialStep === "event" ? "Cancel" : "Back"}
+          </button>
         </div>
       ) : null}
 

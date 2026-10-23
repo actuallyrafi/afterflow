@@ -30,11 +30,13 @@ test("scoring code is gone, not hidden", () => {
   }
 });
 
-test("no feed, tab bar, counts, rankings or 'followed up' badges in the attendee UI", () => {
+// v4.1 (approved by Tanvir, 23 Oct 2026): a three-tab bottom bar (Your people, Events, My card)
+// is back, so the tab-bar ban is lifted. nav.test.ts checks it. Feeds, counts and rankings stay out.
+test("no feed, counts, rankings or 'followed up' badges in the attendee UI", () => {
   const attendee = APP_SOURCES.filter((file) => file.startsWith("app") && !file.includes("organiser"));
   for (const file of attendee) {
     const text = fs.readFileSync(file, "utf8");
-    assert.equal(/Followed up|shared people|tab-bar|TabBar|My connections|Data deleted after the event/.test(text), false, file);
+    assert.equal(/Followed up|shared people|My connections|Data deleted after the event|streak|leaderboard/i.test(text), false, file);
     assert.equal(/connections\??\.length\}/.test(text), false, `${file} renders a count`);
   }
   assert.equal(fs.existsSync(path.join("app", "api", "profiles", "[token]", "matches")), false);

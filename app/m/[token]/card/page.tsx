@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PersonalQr } from "@/components/personal-qr";
-import { CircleLink, Toast, TopBar, useToast } from "@/components/ui/chrome";
+import { Toast, TopBar, useToast } from "@/components/ui/chrome";
 import { Icon } from "@/components/ui/icons";
 import { hueOf, Mark } from "@/components/ui/mark";
 import { Unavailable } from "@/components/unavailable";
@@ -67,8 +67,8 @@ export default function MyCard() {
   }
 
   return (
-    <main className="shell page-top pb-16">
-      <TopBar left={<CircleLink href={`/m/${token}`} icon="back" label="Back to Your people" />} center={<span className="bar-title">My card</span>} />
+    <main className="shell page-top">
+      <TopBar center={<span className="bar-title">My card</span>} />
 
       {profile ? (
         <>
@@ -110,7 +110,9 @@ export default function MyCard() {
                   One gentle reminder
                 </span>
                 <span id="reminder-help" className="s block">
-                  At most once per person. Off unless you turn it on.
+                  {profile.reminders
+                    ? "At most once per person, never for anyone you mute. You can also add it to your own calendar from each person's page."
+                    : "At most once per person. Off unless you turn it on."}
                 </span>
               </span>
               <button

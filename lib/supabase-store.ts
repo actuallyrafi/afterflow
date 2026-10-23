@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { normalizeEventBook } from "./events";
 import {
   applyMatchPatch,
   applyProfilePatch,
@@ -32,6 +33,7 @@ function profileRow(profile: Profile) {
     public_id: profile.publicId,
     name: profile.name,
     contact: profile.contact,
+    contacts: profile.contacts,
     linkedin: "",
     role: "",
     offers: [],
@@ -71,6 +73,9 @@ export function createSupabaseStore(url: string, serviceRoleKey: string): Store 
   const fail = (error: { message: string } | null) => {
     if (error) throw new Error(error.message);
   };
+  // A database that hasn't run the v4.1 lines of schema.sql has no `contacts` column yet.
+  // Then cards still save with their preferred contact, as before.
+  const missingContacts = (error: { message: string } | null) => Boolean(error && /contacts/.test(error.message));
 
   async function one(column: string, value: string): Promise<Profile | null> {
     const { data, error } = await supabase.from("profiles").select("*").eq(column, value).maybeSingle();
@@ -89,7 +94,11 @@ export function createSupabaseStore(url: string, serviceRoleKey: string): Store 
     kind: "supabase",
     async createProfile(input: NewProfile) {
       const profile = buildProfile(input);
-      const { error } = await supabase.from("profiles").insert(profileRow(profile));
+      let { error } = await supabase.from("profiles").insert(profileRow(profile));
+      if (missingContacts(error)) {
+        const { contacts: _skip, ...legacy } = profileRow(profile);
+        ({ error } = await supabase.from("profiles").insert(legacy));
+      }
       fail(error);
       return profile;
     },
@@ -105,16 +114,17 @@ export function createSupabaseStore(url: string, serviceRoleKey: string): Store 
       const current = await store.getProfileById(id);
       if (!current) return null;
       const next = applyProfilePatch(current, patch);
-      const { error } = await supabase
-        .from("profiles")
-        .update({ name: next.name, contact: next.contact, trying_to: next.answer, reminders: next.reminders })
-        .eq("id", id);
+      const fields = { name: next.name, contact: next.contact, trying_to: next.answer, reminders: next.reminders };
+      let { error } = await supabase.from("profiles").update({ ...fields, contacts: next.contacts }).eq("id", id);
+      if (missingContacts(error)) ({ error } = await supabase.from("profiles").update(fields).eq("id", id));
       fail(error);
       return next;
     },
     async deleteProfile(id) {
       fail((await supabase.from("matches").delete().or(`a_id.eq.${id},b_id.eq.${id}`)).error);
       fail((await supabase.from("blocks").delete().or(`blocker_id.eq.${id},blocked_id.eq.${id}`)).error);
+      const books = await supabase.from("event_books").delete().eq("profile_id", id);
+      if (books.error && !/event_books/.test(books.error.message)) fail(books.error);
       fail((await supabase.from("profiles").delete().eq("id", id)).error);
     },
     async createMatch(input: NewMatch) {
@@ -190,6 +200,21 @@ export function createSupabaseStore(url: string, serviceRoleKey: string): Store 
         createdAt: String((row as Record<string, unknown>).created_at),
       }));
     },
+    async readEventBook(profileId) {
+      const { data, error } = await supabase.from("event_books").select("data").eq("profile_id", profileId).maybeSingle();
+      fail(error);
+      return data ? normalizeEventBook((data as { data: unknown }).data) : null;
+    },
+    async updateEventBook(profileId, mutate) {
+      const current = await store.readEventBook(profileId);
+      const next = mutate(current);
+      if (!next) return current;
+      const { error } = await supabase
+        .from("event_books")
+        .upsert({ profile_id: profileId, data: next, updated_at: new Date().toISOString() }, { onConflict: "profile_id" });
+      fail(error);
+      return next;
+    },
     async deleteDemos() {
       const { data, error } = await supabase.from("profiles").select("id").eq("is_demo", true);
       fail(error);
@@ -198,6 +223,8 @@ export function createSupabaseStore(url: string, serviceRoleKey: string): Store 
     async deleteAll() {
       fail((await supabase.from("matches").delete().neq("id", "")).error);
       fail((await supabase.from("blocks").delete().neq("blocker_id", "")).error);
+      const books = await supabase.from("event_books").delete().neq("profile_id", "");
+      if (books.error && !/event_books/.test(books.error.message)) fail(books.error);
       fail((await supabase.from("profiles").delete().neq("id", "")).error);
     },
   };

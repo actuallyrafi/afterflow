@@ -50,7 +50,8 @@ export function handoffFor(contact: string, theirName: string, message: string, 
       channel,
       display: `@${value}`,
       label: "Open Instagram",
-      href: `https://ig.me/m/${encodeURIComponent(value)}`,
+      // Their profile: Message is one tap from there, and we copy the hi first.
+      href: `https://www.instagram.com/${encodeURIComponent(value)}/`,
       copyFirst: true,
     };
   }
@@ -60,5 +61,33 @@ export function handoffFor(contact: string, theirName: string, message: string, 
     label: `Email ${first}`,
     href: `mailto:${value}?subject=${encodeURIComponent("Hi from the Grok Bot hackathon")}&body=${encodeURIComponent(message)}`,
     copyFirst: false,
+  };
+}
+
+export type HiPlan = {
+  /** An app you both use, if any: that goes first. */
+  shared: Channel | null;
+  /** Every way to reach them: the shared app first, then theirs in their preferred order. */
+  options: Handoff[];
+};
+
+/**
+ * Say hi where it's easiest for both of you. If you share an app, that one leads
+ * ("You both use WhatsApp"). Otherwise their own order wins, so you reach them on their app.
+ */
+export function planHandoff(
+  theirContacts: string[],
+  myContacts: string[],
+  theirName: string,
+  message: string,
+  flags = FLAGS,
+): HiPlan {
+  const theirs = theirContacts.filter((value) => typeof value === "string" && value.trim());
+  const mine = new Set(myContacts.map((value) => parseContact(value).channel));
+  const sharedIndex = theirs.findIndex((value) => mine.has(parseContact(value).channel));
+  const ordered = sharedIndex > 0 ? [theirs[sharedIndex], ...theirs.filter((_, index) => index !== sharedIndex)] : theirs;
+  return {
+    shared: sharedIndex >= 0 ? parseContact(theirs[sharedIndex]).channel : null,
+    options: ordered.map((value) => handoffFor(value, theirName, message, flags)),
   };
 }

@@ -88,3 +88,13 @@ create table if not exists blocks (
 );
 create index if not exists blocks_blocked_idx on blocks (blocked_id);
 alter table blocks enable row level security;
+
+-- v4.1: several contact methods (preferred first; `contact` keeps the preferred one so older
+-- builds still read it) and a private book of events per person.
+alter table profiles add column if not exists contacts jsonb not null default '[]'::jsonb;
+create table if not exists event_books (
+  profile_id text primary key references profiles(id) on delete cascade,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table event_books enable row level security;

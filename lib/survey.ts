@@ -33,10 +33,15 @@ export const ANSWER_MAX = 200;
 
 export type Submission = {
   name: string;
-  /** Stored as `channel:value`, e.g. `whatsapp:+447700900123`. */
+  /** The preferred way to reach you, stored as `channel:value`, e.g. `whatsapp:+447700900123`. */
   contact: string;
+  /** Every way to reach you, preferred first, one per app. Older cards only have `contact`. */
+  contacts?: string[];
   answer: string;
 };
+
+export const CONTACTS_LABEL = "Ways to reach you";
+export const CONTACTS_HELP = "Add any you use. Star the one you'd like people to try first. Only shared with people you both say you met.";
 
 export type ParsedContact = { channel: Channel; value: string };
 
@@ -101,7 +106,78 @@ export function parseContact(stored: unknown): ParsedContact {
   return { channel: "discord", value: text.replace(/^@/, "") };
 }
 
-/** Accepts `{ channel, contact }` from the form, or a stored-style `contact: "channel:value"`. */
+/**
+ * One stored contact per app, preferred first. `preferred` (the `contact` field) always wins the
+ * first slot, so a record written by an older build that only knew `contact` still reads right.
+ */
+export function orderContacts(preferred: unknown, list: unknown): string[] {
+  const raw: unknown[] = Array.isArray(list) ? list : [];
+  const out: string[] = [];
+  const seen = new Set<Channel>();
+  const push = (value: unknown) => {
+    if (typeof value !== "string" || !value.trim()) return;
+    const parsed = parseContact(value);
+    if (!parsed.value || seen.has(parsed.channel)) return;
+    seen.add(parsed.channel);
+    out.push(`${parsed.channel}:${parsed.value}`);
+  };
+  if (typeof preferred === "string" && preferred.trim()) {
+    const first = parseContact(preferred);
+    if (first.value) {
+      seen.add(first.channel);
+      // Keep the stored string as-is (older bare values included) so nothing is rewritten.
+      out.push(preferred.trim());
+    }
+  }
+  for (const value of raw) push(value);
+  return out;
+}
+
+/** Reads `contacts` from a stored row: an array, a JSON string (SQL), or nothing (older cards). */
+export function readContacts(preferred: unknown, stored: unknown): string[] {
+  let list: unknown = stored;
+  if (typeof stored === "string") {
+    try {
+      list = stored ? JSON.parse(stored) : [];
+    } catch {
+      list = [];
+    }
+  }
+  return orderContacts(preferred, list);
+}
+
+function validateContacts(raw: Record<string, unknown>): { ok: true; value: string[] } | { ok: false; error: string } | null {
+  if (!Array.isArray(raw.contacts)) return null;
+  const values: string[] = [];
+  const seen = new Set<Channel>();
+  for (const item of raw.contacts as unknown[]) {
+    let channel: unknown;
+    let value: unknown;
+    if (typeof item === "string") {
+      const prefixed = item.match(/^(whatsapp|discord|instagram|email):(.*)$/);
+      if (!prefixed) continue;
+      channel = prefixed[1];
+      value = prefixed[2];
+    } else if (item && typeof item === "object") {
+      channel = (item as Record<string, unknown>).channel;
+      value = (item as Record<string, unknown>).value;
+    }
+    if (typeof value !== "string" || !value.trim()) continue;
+    const checked = normalizeContact(channel, value);
+    if (!checked.ok) return { ok: false, error: `${isChannel(channel) ? CHANNEL_LABEL[channel] : "Contact"}: ${checked.error}` };
+    const parsed = parseContact(checked.value);
+    if (seen.has(parsed.channel)) continue;
+    seen.add(parsed.channel);
+    values.push(checked.value);
+  }
+  if (!values.length) return { ok: false, error: "Add at least one way to reach you." };
+  const preferred = isChannel(raw.preferred) ? raw.preferred : null;
+  const index = preferred ? values.findIndex((value) => value.startsWith(`${preferred}:`)) : -1;
+  if (index > 0) values.unshift(...values.splice(index, 1));
+  return { ok: true, value: values };
+}
+
+/** Accepts `{ contacts: [{ channel, value }], preferred }` from the form, the older single `{ channel, contact }`, or a stored-style `contact: "channel:value"`. */
 export function validateSubmission(
   body: unknown,
   options: { requireConsent?: boolean } = {},
@@ -115,6 +191,9 @@ export function validateSubmission(
   if (name.length < 1) return { ok: false, error: "Add a name. Just a first name is fine." };
   if (name.length > NAME_MAX) return { ok: false, error: `Keep your name under ${NAME_MAX} characters.` };
 
+  const many = validateContacts(raw);
+  if (many && !many.ok) return many;
+
   let channel = raw.channel;
   let value = raw.contact;
   if (!isChannel(channel) && typeof value === "string") {
@@ -124,12 +203,13 @@ export function validateSubmission(
       value = prefixed[2];
     }
   }
-  const contact = normalizeContact(channel, value);
+  const contact = many ? ({ ok: true, value: many.value[0] } as const) : normalizeContact(channel, value);
   if (!contact.ok) return contact;
+  const contacts = many ? many.value : [contact.value];
 
   const answer = clean(raw.answer, 1000);
   if (answer.length < ANSWER_MIN) return { ok: false, error: "A few words is plenty." };
   if (answer.length > ANSWER_MAX) return { ok: false, error: `Keep it under ${ANSWER_MAX} characters.` };
 
-  return { ok: true, value: { name, contact: contact.value, answer } };
+  return { ok: true, value: { name, contact: contact.value, contacts, answer } };
 }

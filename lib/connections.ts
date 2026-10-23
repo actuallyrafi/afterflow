@@ -1,4 +1,15 @@
+import { reminderFor, type CalendarReminder } from "./calendar";
 import { REMINDER_DELAY_MS } from "./event";
+import {
+  activeCurrent,
+  applyEventEdit,
+  autoFile,
+  eventLabel,
+  seededBook,
+  sortEvents,
+  type EventBook,
+  type EventEdit,
+} from "./events";
 import { firstOf } from "./handoff";
 import { nameMatches } from "./name-match";
 import { parseContact, validateSubmission, type Channel } from "./survey";
@@ -28,14 +39,34 @@ export type ConnectionCard = {
   sharedNote: string;
   myAnswer: string;
   metAt: string;
+  /** The event you filed them under. Yours only; their filing of you is theirs. */
+  eventId: string | null;
   other: {
     name: string;
     publicId: string;
     isDemo: boolean;
     answer: string;
-    /** Only after both say yes. */
+    /** Only after both say yes. Their preferred contact. */
     contact?: string;
+    /** Only after both say yes. Every way to reach them, preferred first. */
+    contacts?: string[];
   };
+};
+
+export type EventSummary = {
+  id: string;
+  name: string;
+  date: string;
+  /** "Grok Bot London · 22 Oct" */
+  label: string;
+  /** How many people you filed here. Only you see it, about your own event. */
+  people: number;
+  seeded: boolean;
+};
+
+export type EventsView = {
+  events: EventSummary[];
+  current: { eventId: string; until: string; label: string } | null;
 };
 
 export type HomeResult = {
@@ -45,10 +76,12 @@ export type HomeResult = {
     isDemo: boolean;
     answer: string;
     contact: string;
+    contacts: string[];
     channel: Channel;
     reminders: boolean;
   };
   connections: ConnectionCard[];
+  events: EventsView;
   /** At most one gentle reminder, only if you turned it on. */
   reminder: { connectionId: string; name: string } | null;
 };
@@ -108,7 +141,7 @@ function visibleTo(match: MatchRow, meId: string, blocks: BlockRecord[]): boolea
   return !match.shadow;
 }
 
-function toCard(match: MatchRow, me: Profile, other: Profile): ConnectionCard {
+function toCard(match: MatchRow, me: Profile, other: Profile, book?: EventBook): ConnectionCard {
   const side = sideOf(match, me.id);
   const mine = side === "a" ? match.aStatus : match.bStatus;
   const theirs = side === "a" ? match.bStatus : match.aStatus;
@@ -130,12 +163,13 @@ function toCard(match: MatchRow, me: Profile, other: Profile): ConnectionCard {
     sharedNote: mutual ? match.sharedNote : "",
     myAnswer: me.answer,
     metAt: match.createdAt,
+    eventId: book?.filed[match.id] ?? null,
     other: {
       name: other.name,
       publicId: other.publicId,
       isDemo: other.isDemo,
       answer: other.answer,
-      ...(mutual ? { contact: other.contact } : {}),
+      ...(mutual ? { contact: other.contact, contacts: other.contacts } : {}),
     },
   };
 }
@@ -147,15 +181,60 @@ function ownProfile(me: Profile): HomeResult["profile"] {
     isDemo: me.isDemo,
     answer: me.answer,
     contact: me.contact,
+    contacts: me.contacts,
     channel: parseContact(me.contact).channel,
     reminders: me.reminders,
   };
 }
 
-async function visibleCards(store: Store, me: Profile, now: number) {
+/** This person's book, or (lazily, without writing anything) the seeded one for older cards. */
+async function loadBook(store: Store, me: Profile, matches?: MatchRow[]): Promise<EventBook> {
+  const stored = await store.readEventBook(me.id);
+  if (stored) return stored;
+  return seededBook(me, matches ?? (await store.listMatchesFor(me.id)));
+}
+
+/** Read-modify-write on my own book; the first write materialises the seeded book. */
+async function editBook(store: Store, me: Profile, mutate: (book: EventBook) => EventBook | null): Promise<EventBook> {
+  const matches = await store.listMatchesFor(me.id);
+  const saved = await store.updateEventBook(me.id, (current) => mutate(current ?? seededBook(me, matches)));
+  return saved ?? seededBook(me, matches);
+}
+
+/** Filed automatically only while that person said "I'm at an event now". */
+async function fileUnderCurrent(store: Store, profile: Profile, connectionId: string, now = Date.now()) {
+  const book = await store.readEventBook(profile.id);
+  if (!book || !activeCurrent(book, now)) return;
+  await store.updateEventBook(profile.id, (current) => (current ? autoFile(current, connectionId, now) : null));
+}
+
+function eventsView(book: EventBook, cards: ConnectionCard[], now: number): EventsView {
+  const visible = new Set(cards.map((card) => card.id));
+  const people = new Map<string, number>();
+  for (const [connectionId, eventId] of Object.entries(book.filed)) {
+    if (visible.has(connectionId)) people.set(eventId, (people.get(eventId) ?? 0) + 1);
+  }
+  const current = activeCurrent(book, now);
+  const currentEvent = current ? book.events.find((event) => event.id === current.eventId) : undefined;
+  return {
+    events: sortEvents(book.events).map((event) => ({
+      id: event.id,
+      name: event.name,
+      date: event.date,
+      label: eventLabel(event),
+      people: people.get(event.id) ?? 0,
+      seeded: Boolean(event.seeded),
+    })),
+    current: current && currentEvent ? { ...current, label: eventLabel(currentEvent) } : null,
+  };
+}
+
+async function visibleCards(store: Store, me: Profile, now: number, book?: EventBook) {
   const blocks = await store.listBlocksFor(me.id);
   const rows: { match: MatchRow; card: ConnectionCard }[] = [];
-  for (const match of await store.listMatchesFor(me.id)) {
+  const matches = await store.listMatchesFor(me.id);
+  const filing = book ?? (await loadBook(store, me, matches));
+  for (const match of matches) {
     if (shouldPurge(match, blocks, now)) {
       await store.deleteMatch(match.id);
       continue;
@@ -163,17 +242,17 @@ async function visibleCards(store: Store, me: Profile, now: number) {
     if (!visibleTo(match, me.id, blocks)) continue;
     const other = await store.getProfileById(otherIdOf(match, me.id));
     if (!other) continue;
-    rows.push({ match, card: toCard(match, me, other) });
+    rows.push({ match, card: toCard(match, me, other, filing) });
   }
   rows.sort((left, right) => left.card.other.name.localeCompare(right.card.other.name));
-  return rows;
+  return { rows, book: filing };
 }
 
 export async function listHome(store: Store, token: string, options: { now?: number } = {}): Promise<HomeResult | null> {
   const now = options.now ?? Date.now();
   const me = await store.getProfileByToken(token);
   if (!me) return null;
-  const rows = await visibleCards(store, me, now);
+  const { rows, book } = await visibleCards(store, me, now);
   let reminder: HomeResult["reminder"] = null;
   if (me.reminders) {
     const due = rows.find(({ match, card }) => {
@@ -187,7 +266,52 @@ export async function listHome(store: Store, token: string, options: { now?: num
       reminder = { connectionId: due.card.id, name: firstOf(due.card.other.name) };
     }
   }
-  return { profile: ownProfile(me), connections: rows.map((row) => row.card), reminder };
+  const connections = rows.map((row) => row.card);
+  return { profile: ownProfile(me), connections, events: eventsView(book, connections, now), reminder };
+}
+
+export async function listEvents(store: Store, token: string, options: { now?: number } = {}): Promise<EventsView | null> {
+  const now = options.now ?? Date.now();
+  const me = await store.getProfileByToken(token);
+  if (!me) return null;
+  const { rows, book } = await visibleCards(store, me, now);
+  return eventsView(book, rows.map((row) => row.card), now);
+}
+
+/** Create, rename, delete, start/end "I'm at an event now", and file a connection. Only ever my own book. */
+export async function editEvents(
+  store: Store,
+  token: string,
+  body: unknown,
+  options: { now?: number } = {},
+): Promise<Result<EventsView & { eventId?: string }>> {
+  const now = options.now ?? Date.now();
+  const me = await store.getProfileByToken(token);
+  if (!me) return { status: 404, body: { error: "This card isn't available." } };
+  const edit = (body && typeof body === "object" ? body : {}) as EventEdit;
+  let known = new Set<string>();
+  if (edit.action === "file") {
+    const { rows } = await visibleCards(store, me, now);
+    known = new Set(rows.map((row) => row.card.id));
+  }
+  let failure: { status: number; error: string } | null = null;
+  let eventId: string | undefined;
+  await editBook(store, me, (book) => {
+    const result = applyEventEdit(book, edit, { now, knownConnection: (id) => known.has(id) });
+    if (!result.ok) {
+      failure = { status: result.status, error: result.error };
+      return null;
+    }
+    eventId = result.eventId;
+    return result.book;
+  });
+  if (failure) {
+    const { status, error } = failure as { status: number; error: string };
+    return { status, body: { error } };
+  }
+  const view = await listEvents(store, token, { now });
+  if (!view) return { status: 404, body: { error: "This card isn't available." } };
+  return { status: 200, body: { ...view, ...(eventId ? { eventId } : {}) } };
 }
 
 export async function publicCard(store: Store, publicId: string): Promise<PersonCard | null> {
@@ -258,7 +382,9 @@ export async function addMet(
         aNote: meIsA ? note : "",
         bNote: meIsA ? "" : note,
       }));
-    return { status: 200, body: { connection: toCard(shadow, me, other) } };
+    // Filed for the requester like any request, so nothing about it looks different.
+    await fileUnderCurrent(store, me, shadow.id);
+    return { status: 200, body: { connection: toCard(shadow, me, other, await loadBook(store, me)) } };
   }
 
   // A removed, declined or leftover connection starts again as a fresh request.
@@ -270,6 +396,7 @@ export async function addMet(
     existing = null;
   }
 
+  const created = !existing;
   let match =
     existing ??
     (await store.createMatch({
@@ -286,7 +413,10 @@ export async function addMet(
   if ((side === "a" ? match.aStatus : match.bStatus) !== "accepted") patch[side === "a" ? "aStatus" : "bStatus"] = "accepted";
   if (note) patch[side === "a" ? "aNote" : "bNote"] = note;
   match = (await store.patchMatch(match.id, patch)) ?? match;
-  return { status: 200, body: { connection: toCard(match, me, other) } };
+  // "I'm at an event now": each side's own current event files this new connection for them.
+  await fileUnderCurrent(store, me, match.id);
+  if (created) await fileUnderCurrent(store, other, match.id);
+  return { status: 200, body: { connection: toCard(match, me, other, await loadBook(store, me)) } };
 }
 
 export type ActionBody = { action?: unknown; text?: unknown };
@@ -295,7 +425,13 @@ export async function getConnection(
   store: Store,
   token: string,
   matchId: string,
-): Promise<Result<{ connection: ConnectionCard; me: { name: string; isDemo: boolean } }>> {
+): Promise<
+  Result<{
+    connection: ConnectionCard;
+    me: { name: string; isDemo: boolean; contacts: string[]; reminders: boolean };
+    events: EventsView;
+  }>
+> {
   const me = await store.getProfileByToken(token);
   if (!me) return { status: 404, body: { error: "This card isn't available." } };
   const match = await store.getMatchById(matchId);
@@ -304,7 +440,15 @@ export async function getConnection(
   if (!visibleTo(match, me.id, blocks)) return { status: 404, body: { error: GONE } };
   const other = await store.getProfileById(otherIdOf(match, me.id));
   if (!other) return { status: 404, body: { error: GONE } };
-  return { status: 200, body: { connection: toCard(match, me, other), me: { name: me.name, isDemo: me.isDemo } } };
+  const { rows, book } = await visibleCards(store, me, Date.now());
+  return {
+    status: 200,
+    body: {
+      connection: toCard(match, me, other, book),
+      me: { name: me.name, isDemo: me.isDemo, contacts: me.contacts, reminders: me.reminders },
+      events: eventsView(book, rows.map((row) => row.card), Date.now()),
+    },
+  };
 }
 
 export async function actOnConnection(
@@ -324,8 +468,9 @@ export async function actOnConnection(
   const action = typeof body.action === "string" ? body.action : "";
   const side = sideOf(match, me.id);
   const blocks = await store.listBlocksFor(me.id);
+  const book = await loadBook(store, me);
   const card = (row: MatchRow | null) =>
-    row ? { status: 200, body: { connection: toCard(row, me, other) } } : { status: 404, body: { error: GONE } };
+    row ? { status: 200, body: { connection: toCard(row, me, other, book) } } : { status: 404, body: { error: GONE } };
 
   // Undo is only for the person who removed or blocked, and only while the record still exists.
   if (action === "undo_remove") {
@@ -346,7 +491,13 @@ export async function actOnConnection(
   switch (action) {
     case "confirm": {
       if (match.shadow) return card(match);
-      return card(await store.patchMatch(match.id, { [mine("Status")]: "accepted", met: true }));
+      const confirmed = await store.patchMatch(match.id, { [mine("Status")]: "accepted", met: true });
+      if (confirmed) {
+        await fileUnderCurrent(store, me, match.id);
+        const filed = await store.readEventBook(me.id);
+        if (filed) book.filed = filed.filed;
+      }
+      return card(confirmed);
     }
     case "decline": {
       const updated = await store.patchMatch(match.id, { [mine("Status")]: "declined" });
@@ -453,4 +604,31 @@ export async function deleteCard(store: Store, token: string, confirmName: unkno
   if (!nameMatches(confirmName, me.name)) return { status: 400, body: { error: "That doesn't match your name yet." } };
   await store.deleteProfile(me.id);
   return { status: 200, body: { deleted: true } };
+}
+
+/**
+ * The calendar reminder for one connection: only once you've both said yes, only if you turned
+ * the gentle reminder on, and never for someone you muted.
+ */
+export async function calendarReminder(
+  store: Store,
+  token: string,
+  matchId: string,
+  origin: string,
+  options: { now?: number } = {},
+): Promise<Result<{ reminder: CalendarReminder; theirName: string }>> {
+  const result = await getConnection(store, token, matchId);
+  if (!("connection" in result.body)) return { status: result.status, body: result.body };
+  const { connection, me } = result.body;
+  if (!connection.mutual) return { status: 409, body: { error: "That opens once you've both said yes." } };
+  if (!me.reminders) return { status: 409, body: { error: "Turn on the gentle reminder on My card first." } };
+  if (connection.muted) return { status: 409, body: { error: `You muted ${firstOf(connection.other.name)}, so there's no reminder.` } };
+  const reminder = reminderFor({
+    connectionId: connection.id,
+    theirName: connection.other.name,
+    metAt: connection.metAt,
+    url: `${origin}/m/${token}/c/${connection.id}`,
+    now: options.now,
+  });
+  return { status: 200, body: { reminder, theirName: connection.other.name } };
 }

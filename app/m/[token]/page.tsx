@@ -4,13 +4,13 @@ import { DemoTag } from "@/components/ui/demo-tag";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { EventMenu, filterLabel, type EventFilter } from "@/components/event-menu";
 import { CircleButton, Sheet, takeToast, Toast, TopBar, useToast } from "@/components/ui/chrome";
 import { Icon } from "@/components/ui/icons";
 import { hueOf, Mark } from "@/components/ui/mark";
 import { Unavailable } from "@/components/unavailable";
 import { api, rememberToken } from "@/lib/api";
 import type { ConnectionCard, HomeResult, PersonCard } from "@/lib/connections";
-import { EVENT_LINE } from "@/lib/event";
 import { firstOf } from "@/lib/handoff";
 
 export default function YourPeople() {
@@ -21,7 +21,20 @@ export default function YourPeople() {
   const [settings, setSettings] = useState(false);
   const [adding, setAdding] = useState(false);
   const [reminder, setReminder] = useState<HomeResult["reminder"]>(null);
+  const [filter, setFilter] = useState<EventFilter>("all");
   const { toast, show, hide } = useToast();
+
+  // The event filter lives in the URL (?event=…), so the Events tab can link straight to one.
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get("event");
+    if (value) setFilter(value);
+  }, []);
+
+  function chooseFilter(next: EventFilter) {
+    setFilter(next);
+    const url = next === "all" ? `/m/${token}` : `/m/${token}?event=${encodeURIComponent(next)}`;
+    window.history.replaceState(null, "", url);
+  }
 
   const load = useCallback(async () => {
     const result = await api<HomeResult>(`/api/profiles/${token}`);
@@ -72,19 +85,44 @@ export default function YourPeople() {
 
   if (missing) return <Unavailable />;
 
-  const waiting = home?.connections.filter((item) => !item.mutual) ?? [];
-  const people = home?.connections.filter((item) => item.mutual) ?? [];
+  const events = home?.events.events ?? [];
+  // A filter for an event that was deleted elsewhere falls back to everyone.
+  const activeFilter = filter === "all" || filter === "none" || events.some((event) => event.id === filter) || !home ? filter : "all";
+  const shown =
+    home?.connections.filter((item) =>
+      activeFilter === "all" ? true : activeFilter === "none" ? !item.eventId : item.eventId === activeFilter,
+    ) ?? [];
+  const waiting = shown.filter((item) => !item.mutual);
+  const people = shown.filter((item) => item.mutual);
   const me = home?.profile;
+  const current = home?.events.current ?? null;
 
   return (
-    <main className="shell page-top pb-40">
+    <main className="shell page-top pb-28">
       <TopBar right={<CircleButton icon="more" label="Your people settings" onClick={() => setSettings(true)} />} />
 
-      <h1 className="t-display">Your people</h1>
-      <div className="mt-2.5 mb-[18px] flex flex-wrap gap-2">
-        <span className="pill">{EVENT_LINE}</span>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="t-display">Your people</h1>
+        <button type="button" aria-label="Add someone" className="btn btn-fill btn-icon bg-panel" onClick={() => setAdding(true)}>
+          <Icon name="plus" size={22} />
+        </button>
+      </div>
+      <div className="mt-2.5 mb-[18px] flex flex-wrap items-center gap-2">
+        {home ? <EventMenu token={token} events={events} value={activeFilter} onChange={chooseFilter} /> : <div className="skeleton h-[34px] w-40 rounded-full" />}
         {me?.isDemo ? <DemoTag /> : null}
       </div>
+      {current ? (
+        <Link href={`/m/${token}/events`} className="mb-3 flex items-center gap-2.5 rounded-[18px] bg-panel py-2.5 pr-3 pl-3.5 text-[14px] leading-5">
+          <span className="hue-3 app-chip !size-7">
+            <Icon name="pin" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold">At {current.label}</span>
+            <span className="block text-muted">New people are filed here for you</span>
+          </span>
+          <Icon name="chev" className="chev" />
+        </Link>
+      ) : null}
 
       {!home ? (
         <div aria-busy="true" className="panel p-4">
@@ -134,6 +172,20 @@ export default function YourPeople() {
         </ul>
       ) : null}
 
+      {home && home.connections.length && !shown.length ? (
+        <div className="panel px-5 py-7 text-center">
+          <p className="round text-[20px] leading-6 font-extrabold">No one here yet.</p>
+          <p className="mx-auto mt-1.5 max-w-[290px] text-[15px] leading-[21px] text-muted">
+            {activeFilter === "none"
+              ? "Everyone you met is in an event."
+              : `Open someone's page and choose ${filterLabel(activeFilter, events)} under Event.`}
+          </p>
+          <button type="button" className="btn btn-fill mt-4" onClick={() => chooseFilter("all")}>
+            Show all people
+          </button>
+        </div>
+      ) : null}
+
       {home && !home.connections.length ? (
         <div className="panel px-5 py-7 text-center">
           <p className="round text-[20px] leading-6 font-extrabold">No one here yet.</p>
@@ -147,24 +199,6 @@ export default function YourPeople() {
         </div>
       ) : null}
 
-      {me ? (
-        <Link
-          href={`/m/${token}/card`}
-          className="glass fixed bottom-[calc(env(safe-area-inset-bottom)+30px)] left-[max(16px,calc(50%-204px))] z-20 flex h-[58px] items-center gap-2.5 rounded-[29px] pr-[18px] pl-[9px]"
-        >
-          <Mark name={me.name} seed={me.publicId} size={40} />
-          <span className="round text-[16px] font-extrabold">My card</span>
-        </Link>
-      ) : null}
-      <button
-        type="button"
-        aria-label="Add someone"
-        onClick={() => setAdding(true)}
-        className="glass fixed right-[max(16px,calc(50%-204px))] bottom-[calc(env(safe-area-inset-bottom)+30px)] z-20 grid size-[58px] place-items-center rounded-full"
-      >
-        <Icon name="plus" size={24} />
-      </button>
-
       <Sheet open={settings} onClose={() => setSettings(false)} labelledBy="settings-title">
         <h2 id="settings-title" className="round mb-3.5 text-center text-[20px] font-black">
           Your people
@@ -172,10 +206,6 @@ export default function YourPeople() {
         <div className="group">
           <Link href={`/m/${token}/settings/blocked`} className="item flush items-center" data-autofocus>
             <span className="t flex-1">Blocked</span>
-            <Icon name="chev" className="chev" />
-          </Link>
-          <Link href={`/m/${token}/card`} className="item flush items-center">
-            <span className="t flex-1">My card</span>
             <Icon name="chev" className="chev" />
           </Link>
         </div>

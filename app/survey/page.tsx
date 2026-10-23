@@ -2,9 +2,9 @@
 
 import { DemoTag } from "@/components/ui/demo-tag";
 import Link from "next/link";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { CircleLink, TopBar } from "@/components/ui/chrome";
-import { Icon } from "@/components/ui/icons";
+import { Icon, type IconName } from "@/components/ui/icons";
 import { Mark } from "@/components/ui/mark";
 import { api, rememberToken, savedToken } from "@/lib/api";
 import type { HomeResult, PersonCard } from "@/lib/connections";
@@ -15,8 +15,8 @@ import {
   CHANNEL_PLACEHOLDER,
   CHANNELS,
   CONSENT_TEXT,
-  CONTACT_HELP,
-  CONTACT_LABEL,
+  CONTACTS_HELP,
+  CONTACTS_LABEL,
   NAME_LABEL,
   NAME_MAX,
   parseContact,
@@ -27,11 +27,18 @@ import {
 } from "@/lib/survey";
 
 const INPUT_MODE: Record<Channel, "tel" | "text" | "email"> = { whatsapp: "tel", discord: "text", instagram: "text", email: "email" };
+const CHANNEL_ICON: Record<Channel, IconName> = { whatsapp: "chat", discord: "chat", instagram: "camera", email: "mail" };
+const CHANNEL_HUE: Record<Channel, number> = { whatsapp: 3, discord: 4, instagram: 5, email: 2 };
+const EMPTY: Record<Channel, string> = { whatsapp: "", discord: "", instagram: "", email: "" };
+
+function forInput(channel: Channel, value: string) {
+  return channel === "instagram" ? `@${value}` : value;
+}
 
 export default function CardForm() {
   const [name, setName] = useState("");
-  const [channel, setChannel] = useState<Channel>("whatsapp");
-  const [contact, setContact] = useState("");
+  const [values, setValues] = useState<Record<Channel, string>>(EMPTY);
+  const [preferred, setPreferred] = useState<Channel | null>(null);
   const [answer, setAnswer] = useState("");
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
@@ -40,7 +47,6 @@ export default function CardForm() {
   const [meetPerson, setMeetPerson] = useState<PersonCard | null>(null);
   const [editToken, setEditToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const segRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -49,10 +55,15 @@ export default function CardForm() {
       setEditToken(token);
       void api<HomeResult>(`/api/profiles/${token}`).then((result) => {
         if (result.ok && result.data.profile) {
-          const parsed = parseContact(result.data.profile.contact);
+          const stored = result.data.profile.contacts?.length ? result.data.profile.contacts : [result.data.profile.contact];
+          const next = { ...EMPTY };
+          for (const value of stored) {
+            const parsed = parseContact(value);
+            if (parsed.value && !next[parsed.channel]) next[parsed.channel] = forInput(parsed.channel, parsed.value);
+          }
           setName(result.data.profile.name);
-          setChannel(parsed.channel);
-          setContact(parsed.channel === "instagram" ? `@${parsed.value}` : parsed.value);
+          setValues(next);
+          setPreferred(stored[0] ? parseContact(stored[0]).channel : null);
           setAnswer(result.data.profile.answer);
         } else setEditToken(null);
         setReady(true);
@@ -72,17 +83,16 @@ export default function CardForm() {
   const meetFirst = meetPerson ? firstName(meetPerson.name) : "";
   const editing = Boolean(editToken);
 
-  function moveChannel(delta: number) {
-    const index = (CHANNELS.indexOf(channel) + delta + CHANNELS.length) % CHANNELS.length;
-    setChannel(CHANNELS[index]);
-    segRef.current?.querySelectorAll<HTMLButtonElement>("button")[index]?.focus();
-  }
+  const filled = CHANNELS.filter((option) => values[option].trim());
+  // The star sits on the one you picked, or on the first you filled in.
+  const starred: Channel | null = preferred && values[preferred].trim() ? preferred : (filled[0] ?? null);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
     setSaving(true);
-    const body = { name, channel, contact, answer, consent };
+    const contacts = filled.map((option) => ({ channel: option, value: values[option] }));
+    const body = { name, contacts, preferred: starred, answer, consent };
     const result = editing
       ? await api<{ profile?: unknown }>(`/api/profiles/${editToken}`, { method: "PATCH", body })
       : await api<{ token?: string }>("/api/profiles", { method: "POST", body });
@@ -141,54 +151,50 @@ export default function CardForm() {
           />
         </label>
 
-        <fieldset className="field mt-2.5">
-          <legend className="sr-only">{CONTACT_LABEL}</legend>
-          <span className="field-label" aria-hidden="true">
-            {CONTACT_LABEL}
-          </span>
-          <div ref={segRef} className="seg" role="radiogroup" aria-label={CONTACT_LABEL}>
-            {CHANNELS.map((option) => (
-              <button
-                key={option}
-                type="button"
-                role="radio"
-                aria-checked={channel === option}
-                tabIndex={channel === option ? 0 : -1}
-                onClick={() => setChannel(option)}
-                onKeyDown={(event) => {
-                  if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-                    event.preventDefault();
-                    moveChannel(1);
-                  }
-                  if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-                    event.preventDefault();
-                    moveChannel(-1);
-                  }
-                }}
-              >
-                {CHANNEL_LABEL[option]}
-              </button>
-            ))}
+        <fieldset className="mt-2.5" aria-describedby="contact-help">
+          <legend className="mx-1 mb-1.5 text-[13px] leading-[18px] font-semibold text-muted">{CONTACTS_LABEL}</legend>
+          <div className="group">
+            {CHANNELS.map((option) => {
+              const has = Boolean(values[option].trim());
+              const isStar = starred === option;
+              return (
+                <div key={option} className="contact-row">
+                  <span className={`app-chip hue-${CHANNEL_HUE[option]}`} aria-hidden="true">
+                    <Icon name={CHANNEL_ICON[option]} />
+                  </span>
+                  <span className="contact-main">
+                    <label htmlFor={`contact-${option}`} className="contact-label">
+                      {CHANNEL_LABEL[option]}
+                      {isStar ? <span className="font-normal"> · tried first</span> : null}
+                    </label>
+                    <input
+                      id={`contact-${option}`}
+                      value={values[option]}
+                      onChange={(event) => setValues((current) => ({ ...current, [option]: event.target.value }))}
+                      inputMode={INPUT_MODE[option]}
+                      type={option === "email" ? "email" : option === "whatsapp" ? "tel" : "text"}
+                      autoComplete={option === "email" ? "email" : option === "whatsapp" ? "tel" : "off"}
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      placeholder={CHANNEL_PLACEHOLDER[option]}
+                    />
+                  </span>
+                  <button
+                    type="button"
+                    className="star"
+                    aria-pressed={isStar}
+                    disabled={!has}
+                    aria-label={isStar ? `${CHANNEL_LABEL[option]} is the one people try first` : `Make ${CHANNEL_LABEL[option]} the one people try first`}
+                    onClick={() => setPreferred(option)}
+                  >
+                    <Icon name="star" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
-          <label htmlFor="contact" className="sr-only">
-            Your {CHANNEL_LABEL[channel]}
-          </label>
-          <input
-            id="contact"
-            required
-            value={contact}
-            onChange={(event) => setContact(event.target.value)}
-            inputMode={INPUT_MODE[channel]}
-            type={channel === "email" ? "email" : channel === "whatsapp" ? "tel" : "text"}
-            autoComplete={channel === "email" ? "email" : channel === "whatsapp" ? "tel" : "off"}
-            autoCapitalize="off"
-            spellCheck={false}
-            placeholder={CHANNEL_PLACEHOLDER[channel]}
-            aria-describedby="contact-help"
-            className="!mt-2.5"
-          />
-          <p id="contact-help" className="mt-1.5 text-[12px] leading-4 text-muted">
-            {CONTACT_HELP}
+          <p id="contact-help" className="mx-1 mt-1.5 text-[12px] leading-4 text-muted">
+            {CONTACTS_HELP}
           </p>
         </fieldset>
 

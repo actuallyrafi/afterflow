@@ -5,7 +5,8 @@
 </p>
 
 <p align="center">
-  Keep the people you meet in your life.
+  Keep the people you meet in your life.<br>
+  <em>Afterflow is the connector, not the connection. You do the connecting.</em>
 </p>
 
 <p align="center">
@@ -29,17 +30,18 @@
   <img src="docs/connection.png" width="230" alt="A connection: what you both said, a shared note and a Say hi card">
 </p>
 
-At an event, talking is easy. Afterwards it gets awkward, then it stops. Afterflow is for people who **already met** in real life and want to keep casually talking, so strangers can become familiar and maybe friends. It doesn't match you with strangers, score anyone, or replace the apps you already use.
+At an event, talking is easy. Afterwards it gets awkward, then it stops. Afterflow is for people who **already met** in real life and want to keep casually talking, so strangers can become familiar and maybe friends. It doesn't match you with strangers, score anyone, or replace the apps you already use. There's no chat, feed or profile browsing inside Afterflow: it gets you talking on the app you already use, faster.
 
 It started at the Grok Bot Community Engineering London Hackathon (22 Oct 2026).
 
 ## How it works
 
-1. **Make a card.** Your name, one way to reach you (WhatsApp, Discord, Instagram or email), and one question: *What's something you're into right now?* That's it.
+1. **Make a card.** Your name, the ways to reach you (any of WhatsApp, Discord, Instagram and email; star the one you like best), and one question: *What's something you're into right now?* That's it.
 2. **Show your code.** Someone you just talked to scans your QR code or opens your link and taps **Yes, we met**.
 3. **Both say yes.** Your contact only shows once you both confirm. If you don't, nothing happens and nobody is told.
-4. **Say hi later.** Each person you met lives in **Your people**. Open them to see what you both said and a note you can both see, then **Say hi** with a ready opener you can change: it opens WhatsApp with the message filled in, or copies it for Discord, Instagram or email.
-5. **No pressure.** At most one gentle reminder per person, and only if you turn it on. "Talked again? Mark it" is just for you. No counts, no streaks.
+4. **Say hi later.** Each person you met lives in **Your people**. Open them to see what you both said and a note you can both see, then **Say hi** with a ready opener you can change. If you both use an app, that's first ("You both use WhatsApp. Say hi there."); otherwise it's their favourite. WhatsApp opens with the message filled in, email opens a draft, Instagram opens their profile, Discord copies their username.
+5. **Keep them by event.** The **Events** tab groups people by where you met. Tap **I'm at an event now** and new people are filed there for 24 hours. Your events are private: filing someone changes nothing for them.
+6. **No pressure.** At most one gentle reminder per person, only if you turn it on: in the app, or as one event in your own calendar ("Say hi to Mira", about three days later). "Talked again? Mark it" is just for you. No counts, no streaks.
 
 ## Private and quiet
 
