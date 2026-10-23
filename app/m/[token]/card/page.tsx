@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CHANNEL_ICON, ContactWay, contactError } from "@/components/contact-fields";
+import { DeleteCardSheet } from "@/components/delete-card-sheet";
 import { PersonalQr } from "@/components/personal-qr";
 import { Sheet, Toast, useToast } from "@/components/ui/chrome";
 import { Icon } from "@/components/ui/icons";
@@ -38,6 +39,7 @@ export default function MyCard() {
   const [url, setUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [qr, setQr] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<Channel | null>(null);
   const [addChannel, setAddChannel] = useState<Channel>("whatsapp");
@@ -54,6 +56,12 @@ export default function MyCard() {
       } else if (result.status === 404) setMissing(true);
     });
   }, [token]);
+
+  // Old /delete links land here with #danger-zone; the section renders after the card loads.
+  const loaded = Boolean(profile);
+  useEffect(() => {
+    if (loaded && window.location.hash === "#danger-zone") document.getElementById("danger-zone")?.scrollIntoView({ block: "end" });
+  }, [loaded]);
 
   const ways = profile ? waysOf(profile) : [];
   const free = CHANNELS.filter((channel) => !ways.some((way) => way.channel === channel));
@@ -357,6 +365,22 @@ export default function MyCard() {
               />
             </div>
           </div>
+
+          {/* Danger zone: far below everything else so it can't be hit by accident (v4.1b, per Tanvir). */}
+          <section id="danger-zone" aria-labelledby="danger-title" className="danger-zone">
+            <h2 id="danger-title" className="tag mx-4 mb-2">
+              Danger zone
+            </h2>
+            <div className="group">
+              <button type="button" className="item flush items-center" onClick={() => setDeleting(true)} aria-haspopup="dialog">
+                <span className="t flex-1 text-hot">Delete my card</span>
+              </button>
+            </div>
+            <p className="mx-4 mt-2 text-[13px] leading-[18px] text-muted">
+              Removes your card, notes, events and connections for good. You&apos;ll be asked to confirm.
+            </p>
+          </section>
+          <DeleteCardSheet token={token} name={profile.name} open={deleting} onClose={() => setDeleting(false)} />
         </>
       ) : (
         <div aria-busy="true">

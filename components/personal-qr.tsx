@@ -1,6 +1,5 @@
 "use client";
 
-import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 
 /** Pure black on an opaque white plate, with a quiet zone, so any phone camera reads it. */
@@ -9,12 +8,16 @@ export function PersonalQr({ value, size = 214 }: { value: string; size?: number
 
   useEffect(() => {
     if (!value) return;
-    QRCode.toDataURL(value, {
-      width: 600,
-      margin: 2,
-      errorCorrectionLevel: "M",
-      color: { dark: "#000000", light: "#ffffff" },
-    })
+    // The QR library loads only when a QR is shown, not with the page.
+    import("qrcode")
+      .then(({ default: QRCode }) =>
+        QRCode.toDataURL(value, {
+          width: 600,
+          margin: 2,
+          errorCorrectionLevel: "M",
+          color: { dark: "#000000", light: "#ffffff" },
+        }),
+      )
       .then(setSrc)
       .catch(() => setSrc(""));
   }, [value]);

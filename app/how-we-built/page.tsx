@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Link from "next/link";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-static";
 
 export default function HowWeBuiltPage() {
   const source = fs.readFileSync(path.join(process.cwd(), "BUILD_LOG.md"), "utf8");

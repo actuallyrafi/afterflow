@@ -252,20 +252,28 @@ function eventsView(book: EventBook, cards: ConnectionCard[], now: number): Even
 }
 
 async function visibleCards(store: Store, me: Profile, now: number, book?: EventBook) {
-  const blocks = await store.listBlocksFor(me.id);
+  // Independent reads run together, not one after another (each is a storage round trip).
+  const [blocks, matches] = await Promise.all([store.listBlocksFor(me.id), store.listMatchesFor(me.id)]);
+  const [filing, kept] = await Promise.all([
+    book ?? loadBook(store, me, matches),
+    (async () => {
+      const visible: MatchRow[] = [];
+      for (const match of matches) {
+        if (shouldPurge(match, blocks, now)) {
+          await store.deleteMatch(match.id);
+          continue;
+        }
+        if (visibleTo(match, me.id, blocks)) visible.push(match);
+      }
+      return visible;
+    })(),
+  ]);
+  const others = await Promise.all(kept.map((match) => store.getProfileById(otherIdOf(match, me.id))));
   const rows: { match: MatchRow; card: ConnectionCard }[] = [];
-  const matches = await store.listMatchesFor(me.id);
-  const filing = book ?? (await loadBook(store, me, matches));
-  for (const match of matches) {
-    if (shouldPurge(match, blocks, now)) {
-      await store.deleteMatch(match.id);
-      continue;
-    }
-    if (!visibleTo(match, me.id, blocks)) continue;
-    const other = await store.getProfileById(otherIdOf(match, me.id));
-    if (!other) continue;
-    rows.push({ match, card: toCard(match, me, other, filing) });
-  }
+  kept.forEach((match, index) => {
+    const other = others[index];
+    if (other) rows.push({ match, card: toCard(match, me, other, filing) });
+  });
   rows.sort((left, right) => left.card.other.name.localeCompare(right.card.other.name));
   return { rows, book: filing };
 }

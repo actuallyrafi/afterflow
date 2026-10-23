@@ -1,6 +1,5 @@
 "use client";
 
-import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 
 export function EventQr() {
@@ -10,7 +9,11 @@ export function EventQr() {
   useEffect(() => {
     const origin = window.location.origin;
     setUrl(origin);
-    QRCode.toDataURL(origin, { width: 640, margin: 2, errorCorrectionLevel: "M", color: { dark: "#000000", light: "#ffffff" } })
+    // The QR library loads after first paint; it isn't needed to show the page.
+    import("qrcode")
+      .then(({ default: QRCode }) =>
+        QRCode.toDataURL(origin, { width: 640, margin: 2, errorCorrectionLevel: "M", color: { dark: "#000000", light: "#ffffff" } }),
+      )
       .then(setSrc)
       .catch(() => setSrc(""));
   }, []);

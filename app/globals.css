@@ -437,3 +437,6 @@ dialog.sheet.closing::backdrop { animation: fade-out 0.24s ease-in both; }
 .topbar.titlebar .bar-title { opacity: 0; transition: opacity 0.15s; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .topbar.titlebar[data-shown] .bar-title { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .topbar.titlebar, .topbar.titlebar .bar-title { transition: none; } }
+
+/* v4.1b: Delete card lives at the very bottom of My card, well clear of everything else. */
+.danger-zone { margin-top: 72px; padding-bottom: 8px; scroll-margin-bottom: calc(64px + 8px + env(safe-area-inset-bottom) + 24px); }

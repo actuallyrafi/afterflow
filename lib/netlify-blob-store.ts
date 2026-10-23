@@ -75,24 +75,55 @@ function openClient(): BlobClient {
       : getBlobStore({ name, consistency: "strong" });
   const loose: NetlifyStore =
     siteID && token ? getBlobStore({ name, siteID, token }) : getBlobStore({ name });
-  const client = real as unknown as BlobClient;
-  const looseClient = loose as unknown as BlobClient;
-  const originalGet = client.get.bind(client);
-  // On Netlify's runtime a strong read of a key that does not exist can hang until the
-  // function times out. Cap strong reads and fall back to a normal read, then to "missing".
-  client.get = (async (key: string, options?: { type?: "json" | "text"; consistency?: "strong" }) => {
-    const capped = <T,>(p: Promise<T>, ms: number) =>
-      Promise.race([p, new Promise<"__timeout__">((resolve) => setTimeout(() => resolve("__timeout__"), ms))]);
-    const first = await capped(originalGet(key, options), READ_CAP_MS);
-    if (first !== "__timeout__") return first;
-    const { consistency: _ignored, ...rest } = options ?? {};
-    const second = await capped(looseClient.get(key, rest), READ_CAP_MS);
-    return second === "__timeout__" ? null : second;
-  }) as BlobClient["get"];
-  return client;
+  return guardReads(real as unknown as GuardedClient, loose as unknown as BlobClient);
 }
 
 const READ_CAP_MS = 2500;
+
+type GuardedClient = BlobClient & {
+  getMetadata(key: string, options?: { consistency?: "strong" }): Promise<unknown>;
+};
+
+/**
+ * Wraps the real client's reads so a missing key answers null fast (see below). Exported for tests.
+ */
+export function guardReads(client: GuardedClient, looseClient: BlobClient, capMs = READ_CAP_MS): BlobClient {
+  const originalGet = client.get.bind(client);
+  const originalGetWithMetadata = client.getWithMetadata.bind(client);
+  // Measured on the v4.1 preview (23 Oct 2026): inside Netlify's function runtime a get() of a key
+  // that does not exist never resolves (strong or eventual), while getMetadata() on the same key
+  // answers null in ~20ms and reads of existing keys take ~30-60ms. Every first visit reads at least
+  // one missing key (the event book), so each page load waited out both 2.5s caps: ~5s.
+  // So: ask for the metadata alongside the read; if the key is missing, answer null at once.
+  // Existing keys cost no extra latency (both run in parallel). The caps stay as a last resort.
+  const missing = (key: string, options?: { consistency?: "strong" }) =>
+    client
+      .getMetadata(key, options?.consistency ? { consistency: options.consistency } : undefined)
+      .then((meta) => meta === null)
+      .catch(() => false);
+  const capped = <T,>(p: Promise<T>, ms: number) =>
+    Promise.race([p, new Promise<"__timeout__">((resolve) => setTimeout(() => resolve("__timeout__"), ms))]);
+  const orMissing = async <T,>(key: string, read: Promise<T>, options?: { consistency?: "strong" }): Promise<T | "__missing__"> => {
+    read.catch(() => undefined);
+    const gone = missing(key, options).then((isMissing): Promise<T | "__missing__"> | "__missing__" => (isMissing ? "__missing__" : read));
+    return Promise.race<T | "__missing__">([read, gone]);
+  };
+  client.get = (async (key: string, options?: { type?: "json" | "text"; consistency?: "strong" }) => {
+    const first = await capped(orMissing(key, originalGet(key, options), options), capMs);
+    if (first === "__missing__") return null;
+    if (first !== "__timeout__") return first;
+    const { consistency: _ignored, ...rest } = options ?? {};
+    const second = await capped(orMissing(key, looseClient.get(key, rest)), capMs);
+    return second === "__timeout__" || second === "__missing__" ? null : second;
+  }) as BlobClient["get"];
+  client.getWithMetadata = (async (key: string, options: { type: "json"; consistency?: "strong" }) => {
+    const result = await capped(orMissing(key, originalGetWithMetadata(key, options), options), capMs);
+    if (result === "__missing__") return null;
+    if (result === "__timeout__") throw new Error("Storage is slow right now. Try again.");
+    return result;
+  }) as BlobClient["getWithMetadata"];
+  return client;
+}
 
 export function createNetlifyBlobStore(injected?: BlobClient): Store {
   let cached = injected;

@@ -292,15 +292,13 @@ export default function YourPeople() {
                 "Your contacts only show to people you both said you met.",
                 "Your notes, events, mutes and Talked again marks are only yours.",
                 "No feed, no public profile, no counts. Afterflow doesn't read your chats.",
+                "You can delete your card anytime, from the Danger zone at the bottom of My card.",
               ].map((line) => (
                 <li key={line} className="item flush">
                   <span className="text-[15px] leading-5">{line}</span>
                 </li>
               ))}
             </ul>
-            <Link href={`/m/${token}/delete`} className="group mt-2.5 flex min-h-[54px] w-full items-center justify-center text-[17px] font-semibold text-hot">
-              Delete my card
-            </Link>
             <button type="button" className="btn btn-plain mt-1.5 w-full" onClick={() => setSettingsStep("menu")} data-autofocus>
               Back
             </button>
