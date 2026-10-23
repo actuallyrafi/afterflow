@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CircleLink, Sheet, TopBar } from "@/components/ui/chrome";
 import { Icon } from "@/components/ui/icons";
+import { InstallHint } from "@/components/pwa";
 import { hueOf, Mark } from "@/components/ui/mark";
 import { Unavailable } from "@/components/unavailable";
 import { api, savedToken } from "@/lib/api";
@@ -151,6 +152,8 @@ export default function MeetPage() {
                 <p className="mx-1 mt-2.5 text-[13px] leading-[18px] text-muted">
                   {first} says yes too before either of you sees contact details.
                 </p>
+                {/* Right after making a card: the quiet "Use it like an app" line (D22). */}
+                {justSaved ? <InstallHint className="mt-4" /> : null}
               </>
             ) : (
               <p className="mx-1 mt-4 text-[15px] leading-[21px] text-muted">

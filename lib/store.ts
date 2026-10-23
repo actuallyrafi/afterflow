@@ -14,7 +14,10 @@ export type Profile = {
   contacts: string[];
   /** "What's something you're into right now?" */
   answer: string;
-  /** The one gentle reminder. Off unless the person turns it on. */
+  /**
+   * The one gentle reminder. On by default since v4.1c (owner-approved, 23 Oct 2026); the person can
+   * turn it off. Stored cards that never had the field read as on; an explicit false stays off.
+   */
   reminders: boolean;
   consentAt: string;
   createdAt: string;
@@ -123,6 +126,17 @@ function bool(value: unknown): boolean {
   return value === true || value === 1 || value === "1" || value === "true";
 }
 
+/**
+ * Reminder setting at read time. Unset (undefined/null, e.g. hackathon cards made before the field
+ * existed) means on. Anything stored is respected, so an explicit false stays off. Nothing is rewritten.
+ * Caveat: cards made between v4 and v4.1b were always written with false, so a stored false can't tell
+ * "never touched" from "turned off"; it's treated as off.
+ */
+export function readReminders(value: unknown): boolean {
+  if (value === undefined || value === null || value === "") return true;
+  return bool(value);
+}
+
 function followUp(value: unknown): FollowUp {
   return value === "yes" || value === "not_yet" ? value : null;
 }
@@ -154,7 +168,7 @@ export function normalizeProfile(raw: unknown): Profile | null {
     contact: contacts[0] ?? str(row.contact),
     contacts,
     answer: str(row.answer ?? row.tryingTo ?? row.trying_to).trim(),
-    reminders: bool(row.reminders),
+    reminders: readReminders(row.reminders),
     consentAt: str(row.consentAt ?? row.consent_at),
     createdAt: str(row.createdAt ?? row.created_at),
     secretToken: str(row.secretToken ?? row.secret_token),
@@ -236,7 +250,8 @@ export function buildProfile(input: NewProfile): Profile {
     contact: input.contacts?.[0] ?? input.contact,
     contacts: readContacts(input.contacts?.[0] ?? input.contact, input.contacts ?? []),
     answer: input.answer,
-    reminders: false,
+    // v4.1c: one gentle reminder is on for new cards (and so for every new connection they make).
+    reminders: true,
     consentAt: now,
     createdAt: now,
     secretToken: input.secretToken || crypto.randomBytes(24).toString("base64url"),
@@ -333,7 +348,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   created_at TEXT NOT NULL,
   secret_token TEXT NOT NULL UNIQUE,
   is_demo INTEGER NOT NULL DEFAULT 0,
-  reminders INTEGER NOT NULL DEFAULT 0,
+  reminders INTEGER NOT NULL DEFAULT 1,
   contacts TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS matches (
@@ -403,7 +418,7 @@ function openSqlite(filename: string): SqliteDb {
   }
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS profiles_public_idx ON profiles (public_id)");
   if (!profileColumns.has("linkedin")) db.exec("ALTER TABLE profiles ADD COLUMN linkedin TEXT NOT NULL DEFAULT ''");
-  if (!profileColumns.has("reminders")) db.exec("ALTER TABLE profiles ADD COLUMN reminders INTEGER NOT NULL DEFAULT 0");
+  if (!profileColumns.has("reminders")) db.exec("ALTER TABLE profiles ADD COLUMN reminders INTEGER NOT NULL DEFAULT 1");
   // v4.1: extra contact methods. Old rows keep '' and read as their single `contact`.
   if (!profileColumns.has("contacts")) db.exec("ALTER TABLE profiles ADD COLUMN contacts TEXT NOT NULL DEFAULT ''");
   return db;

@@ -90,7 +90,7 @@ export type HomeResult = {
   };
   connections: ConnectionCard[];
   events: EventsView;
-  /** At most one gentle reminder, only if you turned it on. */
+  /** At most one gentle reminder per person; on unless you turned it off (v4.1c). */
   reminder: { connectionId: string; name: string } | null;
 };
 

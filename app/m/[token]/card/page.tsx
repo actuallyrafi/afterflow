@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { CHANNEL_ICON, ContactWay, contactError } from "@/components/contact-fields";
 import { DeleteCardSheet } from "@/components/delete-card-sheet";
 import { PersonalQr } from "@/components/personal-qr";
+import { InstallHint } from "@/components/pwa";
 import { Sheet, Toast, useToast } from "@/components/ui/chrome";
 import { Icon } from "@/components/ui/icons";
 import { hueOf, Mark } from "@/components/ui/mark";
@@ -303,6 +304,8 @@ export default function MyCard() {
             </div>
           </section>
 
+          <InstallHint myCardToken={token} />
+
           <div className="mx-4 mt-6 mb-2 flex items-baseline justify-between">
             <h2 className="tag">{CONTACTS_LABEL}</h2>
             <button type="button" className="text-[16px] font-semibold" onClick={() => setEditing(true)}>
@@ -349,8 +352,8 @@ export default function MyCard() {
                 </span>
                 <span id="reminder-help" className="s block">
                   {profile.reminders
-                    ? "At most once per person, never for anyone you mute. You can also add it to your own calendar from each person's page."
-                    : "At most once per person. Off unless you turn it on."}
+                    ? "At most once per person, never for anyone you mute. Turn it off any time."
+                    : "Off. Turn it on for at most one nudge per person."}
                 </span>
               </span>
               <button

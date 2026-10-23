@@ -8,3 +8,10 @@
 
 [context.production.environment]
   STORAGE = "netlify-blobs"
+
+# v4.1c PWA: the service worker must always be revalidated so updates reach phones.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, max-age=0, must-revalidate"
+    Service-Worker-Allowed = "/"

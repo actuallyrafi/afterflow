@@ -118,7 +118,7 @@ export default function CardForm() {
     rememberToken(token);
     const pending = meetId || readPendingMeet(new URLSearchParams(window.location.search).get("meet"));
     clearPendingMeet();
-    window.location.assign(pending ? `/meet/${encodeURIComponent(pending)}?saved=1` : `/m/${token}`);
+    window.location.assign(pending ? `/meet/${encodeURIComponent(pending)}?saved=1` : `/m/${token}?new=1`);
   }
 
   const back = editing ? `/m/${editToken}/card` : meetId ? `/meet/${encodeURIComponent(meetId)}` : "/";

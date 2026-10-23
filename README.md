@@ -41,7 +41,7 @@ It started at the Grok Bot Community Engineering London Hackathon (22 Oct 2026).
 3. **Both say yes.** Your contact only shows once you both confirm. If you don't, nothing happens and nobody is told.
 4. **Say hi later.** Each person you met lives in **Your people**. Open them to see what you both said and a note you can both see, then **Say hi** with a ready opener you can change. If you both use an app, that's first ("You both use WhatsApp. Say hi there."); otherwise it's their favourite. WhatsApp opens with the message filled in, email opens a draft, Instagram opens their profile, Discord copies their username.
 5. **Keep them by event.** The **Events** tab groups people by where you met. Tap **I'm at an event now** and new people are filed there for 24 hours. Your events are private: filing someone changes nothing for them.
-6. **No pressure.** At most one gentle reminder per person, only if you turn it on: in the app, or as one event in your own calendar ("Say hi to Mira", about three days later). "Talked again? Mark it" is just for you. No counts, no streaks.
+6. **No pressure.** At most one gentle reminder per person, on by default and easy to turn off on My card: in the app, or as one event in your own calendar ("Say hi to Mira", about three days later). "Talked again? Mark it" is just for you. No counts, no streaks.
 
 ## Private and quiet
 

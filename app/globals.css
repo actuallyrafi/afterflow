@@ -402,41 +402,6 @@ dialog.sheet.closing::backdrop { animation: fade-out 0.24s ease-in both; }
 .item.items-center { align-items: center; }
 .item.items-center .i { margin-top: 0; }
 
-/* v4.1a quote cards (spec §4.1a): no thread. Two equal, left-aligned cards; only the rule colour differs. */
-.quotes { display: flex; flex-direction: column; gap: 8px; }
-.quote { margin: 0; position: relative; background: var(--panel); border-radius: 20px; padding: 12px 16px 14px 22px; }
-.quote::before { content: ""; position: absolute; left: 10px; top: 12px; bottom: 12px; width: 4px; border-radius: 2px; background: var(--rule); }
-.quote figcaption { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--muted); }
-.quote blockquote { margin: 3px 0 0; font-size: 16px; line-height: 22px; color: var(--ink); overflow-wrap: anywhere; }
-.quote blockquote::before { content: "\201C"; }
-.quote blockquote::after { content: "\201D"; }
-.quote[data-hue="1"] { --rule: var(--h1-deep); }
-.quote[data-hue="2"] { --rule: var(--h2-deep); }
-.quote[data-hue="3"] { --rule: var(--h3-deep); }
-.quote[data-hue="4"] { --rule: var(--h4-deep); }
-.quote[data-hue="5"] { --rule: var(--h5-deep); }
-.quote[data-hue="6"] { --rule: var(--h6-deep); }
-@media (prefers-color-scheme: dark) {
-  .quote[data-hue="1"] { --rule: var(--h1-tint); }
-  .quote[data-hue="2"] { --rule: var(--h2-tint); }
-  .quote[data-hue="3"] { --rule: var(--h3-tint); }
-  .quote[data-hue="4"] { --rule: var(--h4-tint); }
-  .quote[data-hue="5"] { --rule: var(--h5-tint); }
-  .quote[data-hue="6"] { --rule: var(--h6-tint); }
-}
-@media (prefers-contrast: more) { .quote { box-shadow: inset 0 0 0 1px var(--ink); } .quote::before { width: 5px; } }
-.section-label { margin: 0 4px 8px; font-size: 13px; line-height: 18px; font-weight: 700; color: var(--muted); }
-
-/* Person page header: in the content, not chrome. */
-.phead { padding: calc(env(safe-area-inset-top) + 64px) 4px 0; }
-.phead h1 { font-family: var(--font-round); font-size: 32px; line-height: 36px; font-weight: 900; letter-spacing: -0.02em; margin-top: 12px; overflow-wrap: anywhere; }
-.phead .ctx { font-size: 15px; line-height: 20px; color: var(--muted); margin-top: 4px; }
-
-/* Plain centred title that fades in once the h1 scrolls under the circles. Name only. */
-.topbar.titlebar { transition: background-color 0.15s, box-shadow 0.15s, border-color 0.15s; }
-.topbar.titlebar .bar-title { opacity: 0; transition: opacity 0.15s; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-.topbar.titlebar[data-shown] .bar-title { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .topbar.titlebar, .topbar.titlebar .bar-title { transition: none; } }
 
 /* v4.1b: Delete card lives at the very bottom of My card, well clear of everything else. */
 .danger-zone { margin-top: 72px; padding-bottom: 8px; scroll-margin-bottom: calc(64px + 8px + env(safe-area-inset-bottom) + 24px); }

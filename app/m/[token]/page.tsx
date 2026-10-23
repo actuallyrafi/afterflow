@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { EventMenu, filterLabel, type EventFilter } from "@/components/event-menu";
 import { CircleButton, Sheet, takeToast, Toast, TopBar, useToast } from "@/components/ui/chrome";
 import { Icon } from "@/components/ui/icons";
+import { InstallHint } from "@/components/pwa";
 import { hueOf, Mark } from "@/components/ui/mark";
 import { Unavailable } from "@/components/unavailable";
 import { api, rememberToken } from "@/lib/api";
@@ -16,6 +17,10 @@ import { firstOf } from "@/lib/handoff";
 export default function YourPeople() {
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
+  const [justMade, setJustMade] = useState(false);
+  useEffect(() => {
+    setJustMade(new URLSearchParams(window.location.search).get("new") === "1");
+  }, []);
   const [home, setHome] = useState<HomeResult | null>(null);
   const [missing, setMissing] = useState(false);
   const [settings, setSettings] = useState(false);
@@ -175,6 +180,9 @@ export default function YourPeople() {
           </button>
         </div>
       ) : null}
+
+      {/* Right after making a card (/m/{token}?new=1): the quiet "Use it like an app" line (D22). */}
+      {justMade ? <InstallHint myCardToken={null} className="mb-3" /> : null}
 
       {!home ? (
         <div aria-busy="true" className="panel p-4">

@@ -123,7 +123,7 @@ test("We didn't meet hides it for both, and a later scan starts fresh", async ()
   assert.equal((await listHome(store, sam.secretToken))?.connections[0].status, "waiting_for_you");
 });
 
-test("one gentle reminder: off by default, at most once, skips muted people", async () => {
+test("one gentle reminder: on by default, can be turned off, at most once, skips muted people", async () => {
   const store = tempStore("afterflow-reminder");
   const ada = await store.createProfile(card("Ada"));
   const jonah = await store.createProfile(card("Jonah"));
@@ -134,8 +134,9 @@ test("one gentle reminder: off by default, at most once, skips muted people", as
     await actOnConnection(store, other.secretToken, added.body.connection.id, { action: "confirm" });
   }
   const later = Date.now() + REMINDER_DELAY_MS + 60_000;
-  assert.equal(ada.reminders, false);
-  assert.equal((await listHome(store, ada.secretToken, { now: later }))?.reminder, null);
+  assert.equal(ada.reminders, true, "v4.1c: on for new cards");
+  await store.updateProfile(ada.id, { reminders: false });
+  assert.equal((await listHome(store, ada.secretToken, { now: later }))?.reminder, null, "turned off means none");
 
   await store.updateProfile(ada.id, { reminders: true });
   assert.equal((await listHome(store, ada.secretToken))?.reminder, null, "not before about three days");

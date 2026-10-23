@@ -140,6 +140,7 @@ const paths = {
   ),
   external: <path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h4" />,
   download: <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 20h14" />,
+  close: <path d="M6 6l12 12M18 6L6 18" />,
   folder: <path d="M3.5 7.5a2.5 2.5 0 012.5-2.5h3.6l2 2.2H18a2.5 2.5 0 012.5 2.5v7.8A2.5 2.5 0 0118 20H6a2.5 2.5 0 01-2.5-2.5z" />,
 } as const;
 

@@ -98,3 +98,4 @@ create table if not exists event_books (
   updated_at timestamptz not null default now()
 );
 alter table event_books enable row level security;
+alter table profiles alter column reminders set default true; -- v4.1c: one gentle reminder on by default (owner-approved, 23 Oct 2026)

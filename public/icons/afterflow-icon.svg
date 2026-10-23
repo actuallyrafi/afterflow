@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Afterflow app icon (v4.1c): two person marks that meet at one corner and keep their own shape.
+       Full-bleed ink square: iOS and Android apply their own mask, so no rounding is baked in. -->
+  <rect width="1024" height="1024" fill="#16181D"/>
+  <!-- mark A: coral, top-left -->
+  <rect x="160" y="200" width="440" height="440" rx="140" fill="#FFE1D6"/>
+  <circle cx="512" cy="288" r="46" fill="#B23A1E"/>
+  <!-- ink gap: they touch but never merge -->
+  <rect x="388" y="348" width="512" height="512" rx="176" fill="#16181D"/>
+  <!-- mark B: sky, bottom-right -->
+  <rect x="424" y="384" width="440" height="440" rx="140" fill="#D6E8FF"/>
+  <circle cx="776" cy="472" r="46" fill="#1F5FB8"/>
+</svg>

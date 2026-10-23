@@ -124,3 +124,13 @@ Built on commit 4220b3e8d7c7c8509953e97d6cc7d1927540706e, on the local branch v4
 - The How we built page now carries the positioning line: "Afterflow is the connector, not the connection. You do the connecting."
 - The TypeScript build cache is no longer tracked, so builds stop leaving a stray change.
 - 60 tests pass. The QR meet flow passes against a local production build. A fresh browser with no saved card sees only the neutral reminder page, checked in Chromium, Firefox and WebKit, and the QR redirect works in all three.
+
+### 23 Oct 2026, 08:00 BST — v4.1c: a longer landing, chat-bubble person page, reminder on, home-screen app
+
+On the local branch v4-redesign. Preview only, not production. All per Tanvir.
+
+- The landing page is long again, like the hackathon page. Its extra lines are back and rewritten to match what Afterflow does now ("You already met. Afterflow gets the two of you talking again after the event."; your contact stays hidden until you both say yes). "Data deleted after the event" is gone because it isn't true any more. New sections: why it exists, how it works in six steps, private and quiet, and use it like an app. The positioning line is on the page.
+- The person page uses the chat-bubble layout Tanvir prefers again: a centred name pill, a "Met at … · date" divider, their answer as a bubble on the left in their colour, yours on the right in grey, then "You both said yes", the shared note, your private note, and Say hi. There is no message box: Afterflow isn't a chat. The quote cards are gone. The Username copy button stays.
+- The one gentle reminder is now on for new cards. Turn it off any time on My card. Cards saved before the setting existed read as on. A saved "off" stays off. Nothing is rewritten in bulk.
+- You can add Afterflow to your home screen: there's a web app manifest, Pixel's icons, Apple tags and a small service worker. The worker keeps only the app's static files and the public start page. It never keeps API answers, your own /m pages, connection or card links. On your own pages the manifest opens your own Your people, so the home-screen app opens signed in, even on iPhone, where home-screen apps don't share Safari's storage.
+- "Use it like an app" is a short guide with three steps for your phone (iPhone Safari or Android Chrome). Open it from a quiet line on My card, the line you see right after making a card, or the landing page. It stays hidden when Afterflow is already running from the home screen.
