@@ -470,7 +470,7 @@ export async function getConnection(
 ): Promise<
   Result<{
     connection: ConnectionCard;
-    me: { name: string; isDemo: boolean; contacts: string[]; reminders: boolean };
+    me: { name: string; isDemo: boolean; contacts: string[]; reminders: boolean; publicId: string };
     events: EventsView;
   }>
 > {
@@ -487,7 +487,7 @@ export async function getConnection(
     status: 200,
     body: {
       connection: toCard(match, me, other, book),
-      me: { name: me.name, isDemo: me.isDemo, contacts: me.contacts, reminders: me.reminders },
+      me: { name: me.name, isDemo: me.isDemo, contacts: me.contacts, reminders: me.reminders, publicId: me.publicId },
       events: eventsView(book, rows.map((row) => row.card), Date.now()),
     },
   };

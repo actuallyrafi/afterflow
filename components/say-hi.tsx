@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { defaultOpener, firstOf, planHandoff, type Handoff } from "@/lib/handoff";
 import { CHANNEL_LABEL, parseContact, type Channel } from "@/lib/survey";
 import { Icon, type IconName } from "./ui/icons";
-import { Mark } from "./ui/mark";
 
 const CHANNEL_ICON: Record<Channel, IconName> = { whatsapp: "whatsapp", discord: "discord", instagram: "camera", email: "mail" };
 
@@ -52,7 +51,6 @@ function subline(option: Handoff): React.ReactNode {
 export function SayHi({
   connectionId,
   theirName,
-  theirSeed,
   contacts,
   myContacts,
   myName,
@@ -60,7 +58,8 @@ export function SayHi({
 }: {
   connectionId: string;
   theirName: string;
-  theirSeed: string;
+  /** Unused since v4.1a (the page header shows their mark); kept so callers don't change. */
+  theirSeed?: string;
   contacts: string[];
   myContacts: string[];
   myName: string;
@@ -138,7 +137,7 @@ export function SayHi({
           <span className="app-tile live-tile">
             <Icon name={CHANNEL_ICON[hand.channel]} />
           </span>
-          <h2 id="say-hi-title" className="round flex-1 text-[19px] leading-6 font-black">
+          <h2 id="say-hi-title" className="round flex-1 text-[19px] leading-6 font-black text-balance">
             You both use {CHANNEL_LABEL[plan.shared]}. Say hi there.
           </h2>
         </div>
@@ -147,14 +146,25 @@ export function SayHi({
           <Actions option={hand} primary message={message} onCopy={copy} beforeOpen={beforeOpen} iconCopy />
         </div>
         {others.length ? (
-          <div className="mt-4 border-t-[0.5px] border-line pt-3">
-            <h3 className="mb-1 text-[14px] font-semibold text-muted">Other ways to reach {first}</h3>
-            <ul>
-              {others.map((option) => (
-                <WayRow key={option.channel} option={option} starred={option.channel === preferred} message={message} onCopy={copy} beforeOpen={beforeOpen} />
-              ))}
-            </ul>
-          </div>
+          <ul className="mt-4 border-t-[0.5px] border-line pt-1" aria-label={`Other ways to reach ${first}`}>
+            {others.map((option) => (
+              <li key={option.channel} className="flex min-h-[52px] items-center gap-3 pt-1">
+                <span className="min-w-0 flex-1 truncate text-[15px] text-muted">
+                  Also on {CHANNEL_LABEL[option.channel]} · <span className={option.channel === "discord" ? "mono" : undefined}>{option.display}</span>
+                  {option.channel === preferred ? (
+                    <span className="ml-1 inline-block align-[-2px] text-star" aria-label="Preferred">
+                      <Icon name="star" size={13} className="[&_path]:fill-current" />
+                    </span>
+                  ) : null}
+                </span>
+                {option.href ? (
+                  <Actions option={option} message={message} onCopy={copy} beforeOpen={beforeOpen} compact />
+                ) : (
+                  <UsernameButton option={option} onCopy={copy} />
+                )}
+              </li>
+            ))}
+          </ul>
         ) : null}
       </section>
     );
@@ -162,12 +172,9 @@ export function SayHi({
 
   return (
     <section className="panel mt-2.5 p-4" aria-labelledby="say-hi-title">
-      <div className="flex items-center gap-2.5">
-        <Mark name={theirName} seed={theirSeed} size={30} />
-        <h2 id="say-hi-title" className="round flex-1 text-[19px] font-black">
-          Say hi
-        </h2>
-      </div>
+      <h2 id="say-hi-title" className="round text-[19px] leading-6 font-black">
+        Say hi
+      </h2>
       {messageBox}
       <h3 className="mt-3.5 mb-1 text-[14px] font-semibold text-muted">
         {plan.options.length > 1 ? `In the order ${first} prefers` : `${first}'s ${CHANNEL_LABEL[hand.channel]}`}
@@ -221,14 +228,7 @@ function Actions({
           <Icon name="copy" size={17} />
           Copy message
         </button>
-        <button
-          type="button"
-          className={`btn ${compact ? "btn-sm !px-3" : ""} btn-fill min-w-0 flex-1`}
-          onClick={() => void onCopy(option.display, "Username copied.")}
-          aria-label={`Copy username ${option.display}`}
-        >
-          Copy username
-        </button>
+        <UsernameButton option={option} onCopy={onCopy} grow />
       </div>
     );
   }
@@ -265,6 +265,21 @@ function Actions({
         </button>
       ) : null}
     </div>
+  );
+}
+
+/** Discord, flag off: a copy icon + "Username" (spec v4.1a), so both buttons fit in 290px. */
+function UsernameButton({ option, onCopy, grow = false }: { option: Handoff; onCopy: CopyFn; grow?: boolean }) {
+  return (
+    <button
+      type="button"
+      className={`btn btn-sm btn-fill !gap-1.5 !px-3 ${grow ? "min-w-0 flex-1" : ""}`}
+      onClick={() => void onCopy(option.display, "Username copied.")}
+      aria-label="Copy username"
+    >
+      <Icon name="copy" size={17} />
+      Username
+    </button>
   );
 }
 

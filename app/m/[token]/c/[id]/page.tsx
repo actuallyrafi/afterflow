@@ -3,7 +3,7 @@
 import { DemoTag } from "@/components/ui/demo-tag";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NoteCard } from "@/components/note-card";
 import { CalendarReminder } from "@/components/calendar-reminder";
 import { PersonSheet, type Step } from "@/components/person-sheet";
@@ -11,13 +11,14 @@ import { SayHi } from "@/components/say-hi";
 import { stashToast, Toast, TopBar, useToast } from "@/components/ui/chrome";
 import { Icon } from "@/components/ui/icons";
 import { hueOf, Mark } from "@/components/ui/mark";
+import { QuoteCard } from "@/components/ui/quote-card";
 import { api, shortDate } from "@/lib/api";
 import type { ConnectionCard, EventEditExtras, EventsView } from "@/lib/connections";
 import { firstOf } from "@/lib/handoff";
 
 type Loaded = {
   connection: ConnectionCard;
-  me: { name: string; isDemo: boolean; contacts: string[]; reminders: boolean };
+  me: { name: string; isDemo: boolean; contacts: string[]; reminders: boolean; publicId?: string };
   events: EventsView;
 };
 
@@ -33,6 +34,26 @@ export default function ConnectionPage() {
   const [note, setNote] = useState("");
   const { toast, show, hide } = useToast();
   const home = `/m/${token}`;
+  const [titleShown, setTitleShown] = useState(false);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const loaded = Boolean(data);
+
+  // The plain title bar fades in once the name scrolls under the floating circles.
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setTitleShown(!entry.isIntersecting), {
+      rootMargin: "-60px 0px 0px 0px",
+      threshold: 0,
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loaded]);
+
+  const fullName = data?.connection.other.name;
+  useEffect(() => {
+    if (fullName) document.title = `${fullName} · Afterflow`;
+  }, [fullName]);
 
   const load = useCallback(async () => {
     const result = await api<Loaded>(`/api/profiles/${token}/connections/${id}`);
@@ -120,12 +141,15 @@ export default function ConnectionPage() {
 
   if (!data) {
     return (
-      <main className="shell page-top" aria-busy="true">
-        <TopBar left={<BackLink href={home} />} alwaysGlass />
-        <div className="skeleton mx-auto mt-6 h-4 w-48" />
-        <div className="skeleton mt-6 h-12 w-64" />
-        <div className="skeleton mt-3 ml-auto h-12 w-56" />
-        <div className="skeleton mt-8 h-40 w-full" />
+      <main className="shell" aria-busy="true">
+        <TopBar left={<BackLink href={home} />} />
+        <div className="phead">
+          <div className="skeleton size-[72px] rounded-[40%]" />
+          <div className="skeleton mt-3 h-9 w-56" />
+          <div className="skeleton mt-2 h-4 w-48" />
+        </div>
+        <div className="skeleton mt-5 h-56 w-full rounded-[28px]" />
+        <div className="skeleton mt-6 h-24 w-full rounded-[20px]" />
       </main>
     );
   }
@@ -133,31 +157,51 @@ export default function ConnectionPage() {
   const { connection, me, events } = data;
   const other = connection.other;
   const first = firstOf(other.name);
+  const myPublicId = me.publicId ?? me.name;
   const contacts = other.contacts?.length ? other.contacts : other.contact ? [other.contact] : [];
   const filedEvent = events.events.find((event) => event.id === connection.eventId) ?? null;
-  const metLine = filedEvent ? `Met at ${filedEvent.label}` : `Met ${shortDate(connection.metAt)}`;
+  const day = shortDate(connection.metAt);
+  // Context line (spec v4.1a): the event when it's known, otherwise when you both said yes.
+  const context = filedEvent
+    ? `You met at ${filedEvent.label}`
+    : connection.status === "connected"
+      ? `You both said yes · ${day}`
+      : `Met ${day}`;
+  const at = filedEvent ? ` · ${filedEvent.name}` : "";
   const openSheet = (step: Step) => {
     setSheetStep(step);
     setSheet(true);
   };
 
+  const quotes =
+    other.answer || connection.myAnswer ? (
+      <section className="mt-6 rise" style={{ animationDelay: "80ms" }} aria-labelledby="said-title">
+        <h2 id="said-title" className="section-label">
+          What you both said
+        </h2>
+        <div className="quotes">
+          {other.answer ? <QuoteCard label={`${first} said${at}`} text={other.answer} hue={hueOf(other.publicId)} /> : null}
+          {connection.myAnswer ? <QuoteCard label={`You said${at}`} text={connection.myAnswer} hue={hueOf(myPublicId)} /> : null}
+        </div>
+      </section>
+    ) : null;
+
   return (
-    <main className="shell page-top pb-16">
+    <main className="shell pb-16">
       <TopBar
-        alwaysGlass
-        left={<BackLink href={home} plain />}
+        shown={titleShown}
+        className="titlebar"
+        left={<BackLink href={home} />}
         center={
-          <button type="button" className="namepill glass" onClick={() => openSheet("menu")} aria-haspopup="dialog">
-            <Mark name={other.name} seed={other.publicId} size={30} state={connection.muted ? "muted" : undefined} />
-            <span>{other.name}</span>
-            {other.isDemo ? <DemoTag /> : null}
-          </button>
+          <span className="bar-title" aria-hidden={!titleShown}>
+            {other.name}
+          </span>
         }
         right={
           <button
             type="button"
-            className="circle"
-            aria-label={`More options for ${first}`}
+            className="circle glass"
+            aria-label={`More about ${first}`}
             aria-haspopup="dialog"
             onClick={() => openSheet("menu")}
           >
@@ -166,68 +210,23 @@ export default function ConnectionPage() {
         }
       />
 
-      <div className="rise">
-        <p className="event-line mt-1.5">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 hover:text-ink"
-            aria-haspopup="dialog"
-            aria-label={`${metLine}. Move ${first} to another event`}
-            onClick={() => openSheet("event")}
-          >
-            {metLine}
-            <Icon name="chevDown" size={14} />
-          </button>
-        </p>
+      <header className="phead rise">
+        <Mark name={other.name} seed={other.publicId} size={72} state={connection.muted ? "muted" : undefined} />
+        <h1 ref={titleRef}>
+          {other.name}
+          {other.isDemo ? <DemoTag /> : null}
+        </h1>
+        <p className="ctx">{context}</p>
         {other.isDemo || me.isDemo ? (
-          <p className="-mt-1.5 mb-3 text-center text-[12px] text-muted">
-            <DemoTag className="!ml-0 mr-1.5" />
+          <p className="mt-1.5 text-[12px] text-muted">
             {other.isDemo && me.isDemo ? "Both cards are demo cards" : other.isDemo ? `${first} is a demo card` : "You're viewing a demo card"}
           </p>
         ) : null}
-      </div>
-
-      {other.answer ? (
-        <div className="rise" style={{ animationDelay: "40ms" }}>
-          <p className="speaker">{first}</p>
-          <div className={`them hue-${hueOf(other.publicId)}`}>
-            <Mark name={other.name} seed={other.publicId} size={30} />
-            <p className="bubble">{other.answer}</p>
-          </div>
-        </div>
-      ) : (
-        <p className="event-line">
-          {first} didn&apos;t add anything yet. You met{filedEvent ? ` at ${filedEvent.name}` : ""} — that&apos;s plenty to start with.
-        </p>
-      )}
-      {connection.myAnswer ? (
-        <div className="me rise mt-2.5" style={{ animationDelay: "80ms" }}>
-          <p className="bubble">{connection.myAnswer}</p>
-        </div>
-      ) : null}
+      </header>
 
       {connection.status === "connected" ? (
         <>
-          <p className="event-line rise" style={{ animationDelay: "120ms" }}>
-            You both said yes
-          </p>
-          <div className="rise flex flex-col gap-2" style={{ animationDelay: "160ms" }}>
-            <NoteCard
-              kind="shared"
-              value={connection.sharedNote}
-              placeholder={`Something you and ${first} want to remember`}
-              max={280}
-              onSave={async (text) => Boolean(await act("shared_note", { text }))}
-            />
-            <NoteCard
-              kind="private"
-              value={connection.myNote}
-              placeholder="Add a private note"
-              max={180}
-              onSave={async (text) => Boolean(await act("my_note", { text }))}
-            />
-          </div>
-          <div className="rise" style={{ animationDelay: "200ms" }}>
+          <div className="rise mt-5" style={{ animationDelay: "40ms" }}>
             <SayHi
               connectionId={connection.id}
               theirName={other.name}
@@ -238,8 +237,30 @@ export default function ConnectionPage() {
               onToast={(text) => show(text)}
             />
           </div>
+          {quotes}
+          <section className="rise mt-6" style={{ animationDelay: "120ms" }} aria-labelledby="notes-title">
+            <h2 id="notes-title" className="section-label">
+              Notes
+            </h2>
+            <div className="flex flex-col gap-2">
+              <NoteCard
+                kind="shared"
+                value={connection.sharedNote}
+                placeholder={`Something you and ${first} want to remember`}
+                max={280}
+                onSave={async (text) => Boolean(await act("shared_note", { text }))}
+              />
+              <NoteCard
+                kind="private"
+                value={connection.myNote}
+                placeholder="Add a private note"
+                max={180}
+                onSave={async (text) => Boolean(await act("my_note", { text }))}
+              />
+            </div>
+          </section>
           {me.reminders && !connection.muted ? (
-            <div className="rise" style={{ animationDelay: "240ms" }}>
+            <div className="rise" style={{ animationDelay: "160ms" }}>
               <CalendarReminder
                 connectionId={connection.id}
                 theirName={other.name}
@@ -282,11 +303,13 @@ export default function ConnectionPage() {
             <span className="text-[12px] text-faint">Only you see this</span>
           </div>
         </>
-      ) : null}
+      ) : (
+        quotes
+      )}
 
       {connection.status === "waiting_for_them" ? (
         <>
-          <p className="event-line">Waiting for {first} to say yes. No rush — their details appear here when they do.</p>
+          <p className="mx-1 mt-5 mb-2.5 text-[15px] leading-[21px] text-muted">Waiting for {first} to say yes. No rush — their details appear here when they do.</p>
           <NoteCard
             kind="private"
             value={connection.myNote}
@@ -401,9 +424,9 @@ export default function ConnectionPage() {
   );
 }
 
-function BackLink({ href, plain = false }: { href: string; plain?: boolean }) {
+function BackLink({ href }: { href: string }) {
   return (
-    <Link href={href} aria-label="Back to Your people" className={`circle ${plain ? "" : "glass"}`}>
+    <Link href={href} aria-label="Back to Your people" className="circle glass">
       <Icon name="back" />
     </Link>
   );

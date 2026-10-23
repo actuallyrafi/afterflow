@@ -11,6 +11,8 @@ export function TopBar({
   right,
   alwaysGlass = false,
   wideRight = false,
+  shown,
+  className = "",
 }: {
   left?: ReactNode;
   center?: ReactNode;
@@ -18,18 +20,21 @@ export function TopBar({
   alwaysGlass?: boolean;
   /** Room for two circles on the right (Your people: + and ⋯). */
   wideRight?: boolean;
+  /** Controlled: glass only when true (the person page's title bar). */
+  shown?: boolean;
+  className?: string;
 }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    if (alwaysGlass) return;
+    if (alwaysGlass || shown !== undefined) return;
     const onScroll = () => setScrolled(window.scrollY > 4);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, [alwaysGlass]);
-  const glass = alwaysGlass || scrolled;
+  }, [alwaysGlass, shown]);
+  const glass = shown ?? (alwaysGlass || scrolled);
   return (
-    <header className={`topbar ${glass ? "glass" : ""}`}>
+    <header className={`topbar ${glass ? "glass" : ""} ${className}`} data-shown={shown ? "" : undefined}>
       <div className={`topbar-inner ${wideRight ? "!grid-cols-[44px_1fr_auto]" : ""}`}>
         <div>{left}</div>
         <div className="flex min-w-0 justify-center">{center}</div>

@@ -19,6 +19,7 @@ const SIZES = {
   48: { box: 48, font: 19, radius: 19 },
   56: { box: 56, font: 22, radius: 22 },
   64: { box: 64, font: 25, radius: 25 },
+  72: { box: 72, font: 28, radius: 29 },
   96: { box: 96, font: 38, radius: 38 },
 } as const;
 
