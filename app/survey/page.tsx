@@ -1,7 +1,7 @@
 "use client";
 
 import { isStandalone } from "@/components/pwa";
-import { afterCardPath, platformOf } from "@/lib/install-guide";
+import { INSTALL_PENDING_KEY, platformOf, shouldPromptInstall } from "@/lib/install-guide";
 import { DemoTag } from "@/components/ui/demo-tag";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
@@ -128,8 +128,16 @@ export default function CardForm() {
     rememberToken(token);
     const pending = meetId || readPendingMeet(new URLSearchParams(window.location.search).get("meet"));
     clearPendingMeet();
-    // D24: a phone in the browser sees the "Add Afterflow to your home screen" step before Your people.
-    const next = afterCardPath(token, { standalone: isStandalone(), platform: platformOf(navigator.userAgent, navigator.maxTouchPoints) });
+    // D28: a phone in the browser gets the "Add Afterflow to your home screen" pop-up on its first
+    // signed-in page (Your people, or after "Yes, we met" on the QR path).
+    if (shouldPromptInstall({ standalone: isStandalone(), platform: platformOf(navigator.userAgent, navigator.maxTouchPoints) })) {
+      try {
+        localStorage.setItem(INSTALL_PENDING_KEY, "1");
+      } catch {
+        // Private mode: no pop-up; the My card hint is still there.
+      }
+    }
+    const next = `/m/${token}`;
     window.location.assign(pending ? `/meet/${encodeURIComponent(pending)}?saved=1` : next);
   }
 

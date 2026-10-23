@@ -1,8 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { normalizeEventBook } from "./events";
 import {
-  applyMatchPatch,
   applyProfilePatch,
+  resolveUpdate,
   buildProfile,
   canonicalPair,
   initMatch,
@@ -167,7 +167,8 @@ export function createSupabaseStore(url: string, serviceRoleKey: string): Store 
     async patchMatch(id, patch) {
       const current = await store.getMatchById(id);
       if (!current) return null;
-      const next = applyMatchPatch(current, patch);
+      const next = resolveUpdate(current, patch);
+      if (!next) return current;
       fail((await supabase.from("matches").update(matchColumns(next)).eq("id", id)).error);
       return next;
     },

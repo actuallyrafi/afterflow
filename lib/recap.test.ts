@@ -22,6 +22,8 @@ function conn(id: string, partial: Partial<ConnectionCard> = {}): ConnectionCard
     mutualAt: "2026-10-22T20:00:00.000Z",
     hello: null,
     sharedNote: "",
+    sharedNoteAt: null,
+    sharedNoteByThem: false,
     myAnswer: "",
     metAt: "2026-10-22T19:55:00.000Z",
     eventId: "ev1",

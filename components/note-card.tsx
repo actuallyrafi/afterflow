@@ -10,14 +10,19 @@ export function NoteCard({
   placeholder,
   max,
   onSave,
+  updated = null,
 }: {
   kind: "shared" | "private";
   value: string;
   placeholder: string;
   max: number;
-  onSave: (text: string) => Promise<boolean>;
+  /** true = saved; false = failed (the page shows why); a string = keep editing and show it here. */
+  onSave: (text: string) => Promise<boolean | string>;
+  /** D26: "Updated by Mira · 08:14" when the other person changed the shared note. */
+  updated?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
+  const [notice, setNotice] = useState("");
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
@@ -62,6 +67,7 @@ export function NoteCard({
         <span className={`mt-0.5 block ${kind === "private" ? "text-muted" : ""} ${value ? "" : "text-faint"}`}>
           {value || placeholder}
         </span>
+        {updated ? <span className="note-updated mt-1 block text-[12px] leading-4 text-muted">{updated}</span> : null}
       </button>
     );
   }
@@ -72,9 +78,13 @@ export function NoteCard({
       onSubmit={async (event) => {
         event.preventDefault();
         setSaving(true);
-        const ok = await onSave(draft.trim());
+        const result = await onSave(draft.trim());
         setSaving(false);
-        if (ok) setEditing(false);
+        if (typeof result === "string") setNotice(result);
+        else if (result) {
+          setNotice("");
+          setEditing(false);
+        }
       }}
     >
       <label htmlFor={`note-${kind}`}>{tag}</label>
@@ -94,8 +104,21 @@ export function NoteCard({
         }}
         className="mt-0.5"
       />
+      {notice ? (
+        <p role="status" className="mt-2 text-[13px] leading-[18px] text-muted">
+          {notice}
+          {value ? <span className="mt-1 block text-ink">“{value}”</span> : null}
+        </p>
+      ) : null}
       <div className="mt-2 flex justify-end gap-1.5">
-        <button type="button" className="btn btn-sm btn-plain" onClick={() => setEditing(false)}>
+        <button
+          type="button"
+          className="btn btn-sm btn-plain"
+          onClick={() => {
+            setNotice("");
+            setEditing(false);
+          }}
+        >
           Cancel
         </button>
         <button type="submit" className="btn btn-sm btn-ink" disabled={saving} aria-busy={saving}>

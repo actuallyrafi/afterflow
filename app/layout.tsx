@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Nunito } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "@/components/pwa";
+import { THEME_BOOT } from "@/lib/theme";
 
 const nunito = Nunito({ subsets: ["latin"], weight: ["600", "700", "800", "900"], variable: "--font-nunito", display: "swap" });
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -29,10 +30,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f4f2" },
-    { media: "(prefers-color-scheme: dark)", color: "#0e0f12" },
-  ],
+  // D29: no themeColor here. THEME_BOOT (first in <head>, before paint) writes the one
+  // <meta name="theme-color"> from the Appearance choice: THEME_COLOR.light or THEME_COLOR.dark.
 };
 
 // Set once per load, never animated: a slightly warmer ground in the morning and evening,
@@ -43,6 +42,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en-GB" className={`${nunito.variable} ${inter.variable}`} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
         <script dangerouslySetInnerHTML={{ __html: BOOT }} />
       </head>
       <body>

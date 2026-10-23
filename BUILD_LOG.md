@@ -146,3 +146,13 @@ On the local branch v4-redesign. Preview only, not production. All per Tanvir.
 - The landing drops the "doesn't match you with strangers…" line. The positioning line is now "Afterflow keeps the door open. You two walk through it." here, on the landing, in the README and in BIBLE.md (v1.2, approved by Tanvir on 23 Oct).
 - Make your card: each app tab keeps what you type, and every one you fill in is saved. The first one you filled is starred. A dot marks tabs with something in them. "Add another way" is gone from the form.
 - 92 tests pass. 38 cross-engine checks pass in each of Chromium, Firefox and WebKit.
+
+### 23 Oct 2026, 08:31 BST — v4.1e: shared note sync, a tidier Say hi, the home-screen pop-up, Appearance
+
+On the local branch v4-redesign. Preview only, not production. All per Tanvir.
+
+- Shared note: either of you can edit it and the other sees the change. The person page now checks again when you come back to it (switching apps, unlocking, refocusing), and a quiet "Updated by Mira · 08:14" line shows when they changed it. There's no live chat or typing dot. If they changed it while you were editing, Afterflow doesn't overwrite theirs: it shows their version and you can save again to replace it. Checked both ways, and there was no regression from v4.1.
+- "Other ways to reach Mira" is one row with small app icons and a chevron. Tap it to open the rows. It starts closed and doesn't show when there's only one way.
+- Right after you make your card on a phone, "Add Afterflow to your home screen" pops up as a sheet over your first signed-in page, with that phone's steps (and Install on Android when Chrome offers it), Done and Not now. It shows once, never on a computer or when Afterflow is already on the home screen. The hint on My card stays.
+- Appearance: System, Light or Dark, on My card and as a small button on the landing. It's saved on this phone and applied before the page draws, so there's no flash, and the browser bar colour follows it.
+- 104 tests pass. 53 cross-engine checks pass in each of Chromium, Firefox and WebKit.

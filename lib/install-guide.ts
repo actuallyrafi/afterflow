@@ -43,12 +43,19 @@ export const INSTALL_STEP_TITLE = "Add Afterflow to your home screen";
 export const INSTALL_STEP_SIGNED_IN = "You're adding it from your own card, so it opens signed in.";
 export const LANDING_INSTALL_LINE = "Once your card is made, we'll show you how to add Afterflow to your home screen.";
 
+/** D28: storage keys for the pop-up after making a card. */
+export const INSTALL_PENDING_KEY = "afterflow.install.pending";
+export const INSTALL_SEEN_KEY = "afterflow.install.step";
+
 /**
- * Where a newly made card goes next. Already running from the home screen, or a computer (no
- * phone steps to show): straight to Your people. A phone in the browser: the install step first.
+ * D28: whether making a card should queue the "Add Afterflow to your home screen" pop-up. Phones in
+ * the browser only: never on a computer, never when already running from the home screen.
  */
-export function afterCardPath(token: string, device: { standalone: boolean; platform: InstallPlatform }): string {
-  const home = `/m/${encodeURIComponent(token)}`;
-  if (device.standalone || device.platform === "other") return home;
-  return `${home}/install`;
+export function shouldPromptInstall(device: { standalone: boolean; platform: InstallPlatform }): boolean {
+  return !device.standalone && device.platform !== "other";
+}
+
+/** D28: show the queued pop-up now? Never again after Not now (or Done). */
+export function popInstallNow(state: { pending: boolean; seen: string | null; standalone: boolean; platform: InstallPlatform }): boolean {
+  return state.pending && !state.seen && shouldPromptInstall(state);
 }

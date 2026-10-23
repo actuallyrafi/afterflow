@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { BottomNav } from "@/components/bottom-nav";
+import { InstallPrompt } from "@/components/install-guide";
 import { TOKEN_PATTERN, userManifestPath } from "@/lib/pwa";
 
 // v4.1c: installing from your own pages makes the home-screen icon open your own Your people
@@ -16,6 +17,7 @@ export default async function SignedInLayout({ children, params }: { children: R
     <div className="with-tabbar">
       {children}
       <BottomNav token={token} />
+      <InstallPrompt />
     </div>
   );
 }

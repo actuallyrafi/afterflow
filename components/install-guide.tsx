@@ -8,10 +8,15 @@ import {
   INSTALL_FROM_MY_CARD,
   INSTALL_ON_MY_CARD,
   INSTALL_OPENS,
+  INSTALL_PENDING_KEY,
+  INSTALL_SEEN_KEY,
+  INSTALL_STEP_SIGNED_IN,
+  INSTALL_STEP_TITLE,
   INSTALL_TITLE,
   IOS_STEPS,
   installSteps,
   platformOf,
+  popInstallNow,
   type InstallPlatform,
   type InstallStep,
 } from "@/lib/install-guide";
@@ -140,33 +145,84 @@ export function InstallGuideLink({ className = "", children = INSTALL_TITLE }: {
   );
 }
 
-/** Landing section: the same steps for both phones, quiet. Hidden when already installed. */
-export function InstallGuideSection() {
-  const { ready, standalone } = useInstallState();
+/**
+ * D28: the "Add Afterflow to your home screen" pop-up, a modal bottom sheet over the first signed-in
+ * page after making a card (both paths). This device's steps only, Install on Android when Chrome
+ * offers it, primary Done and a quiet Not now. Shown once: after either, it never pops up again
+ * (the My card hint stays). Never on a computer or when already running from the home screen.
+ */
+export function InstallPrompt() {
+  const { ready, standalone, platform, canPrompt } = useInstallState();
   const [open, setOpen] = useState(false);
-  if (ready && standalone) return null;
+
+  useEffect(() => {
+    if (!ready) return;
+    let pending = false;
+    let seen: string | null = null;
+    try {
+      pending = localStorage.getItem(INSTALL_PENDING_KEY) === "1";
+      seen = localStorage.getItem(INSTALL_SEEN_KEY);
+    } catch {
+      return;
+    }
+    if (popInstallNow({ pending, seen, standalone, platform })) {
+      const timer = window.setTimeout(() => setOpen(true), 450);
+      return () => window.clearTimeout(timer);
+    }
+    if (pending) {
+      try {
+        localStorage.removeItem(INSTALL_PENDING_KEY);
+      } catch {
+        // ignore
+      }
+    }
+  }, [ready, standalone, platform]);
+
+  function close(answer: "done" | "later") {
+    try {
+      localStorage.setItem(INSTALL_SEEN_KEY, answer);
+      localStorage.removeItem(INSTALL_PENDING_KEY);
+    } catch {
+      // Private mode: nothing to remember.
+    }
+    setOpen(false);
+  }
+
+  const steps = installSteps(platform, canPrompt);
   return (
-    <section className="mt-12 max-w-2xl" aria-labelledby="install-section-title" id="use-it-like-an-app">
-      <h2 id="install-section-title" className="round text-[26px] leading-8 font-black tracking-[-0.01em]">
-        {INSTALL_TITLE}
-      </h2>
-      <p className="mt-2 text-[15px] leading-[22px] text-muted">
-        Add Afterflow to your home screen. {INSTALL_OPENS} {INSTALL_FROM_MY_CARD}
-      </p>
-      <div className="mt-4 grid gap-2.5 md:grid-cols-2">
-        <div className="panel p-4">
-          <h3 className="tag mb-3">iPhone · Safari</h3>
-          <StepList steps={IOS_STEPS} />
-        </div>
-        <div className="panel p-4">
-          <h3 className="tag mb-3">Android · Chrome</h3>
-          <StepList steps={ANDROID_MENU_STEPS} />
-        </div>
+    <Sheet open={open} onClose={() => close("later")} labelledBy="install-pop-title" describedBy="install-pop-opens">
+      <div className="text-center" data-platform={platform} id="install-pop">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/icons/icon-192.png" alt="" width={64} height={64} className="mx-auto rounded-[22%] shadow-[0_6px_20px_rgba(0,0,0,0.14)]" />
+        <h2 id="install-pop-title" className="round mx-auto mt-4 max-w-[300px] text-[24px] leading-[30px] font-black text-balance">
+          {INSTALL_STEP_TITLE}
+        </h2>
+        <p id="install-pop-opens" className="mx-auto mt-1.5 max-w-[300px] text-[15px] leading-[21px] text-muted">
+          {INSTALL_OPENS}
+        </p>
       </div>
-      <button type="button" className="btn btn-fill mt-4" onClick={() => setOpen(true)} aria-haspopup="dialog">
-        Show me on this phone
+      <div className="group mt-4 p-4 text-left">
+        <h3 className="tag mb-2">{platform === "ios" ? "On this iPhone · Safari" : "On this phone · Chrome"}</h3>
+        <StepList steps={steps} />
+        {platform === "android" && canPrompt ? (
+          <button
+            type="button"
+            className="btn btn-fill mt-4 w-full"
+            onClick={async () => {
+              if ((await promptInstall()) === "accepted") close("done");
+            }}
+          >
+            Install
+          </button>
+        ) : null}
+      </div>
+      <p className="mt-2.5 px-2 text-center text-[13px] leading-[18px] text-muted">{INSTALL_STEP_SIGNED_IN}</p>
+      <button type="button" className="btn btn-lg btn-ink mt-3 w-full" data-autofocus onClick={() => close("done")}>
+        Done
       </button>
-      <InstallGuideSheet open={open} onClose={() => setOpen(false)} />
-    </section>
+      <button type="button" className="mt-1 block min-h-[48px] w-full text-[16px] font-semibold text-muted" onClick={() => close("later")}>
+        Not now
+      </button>
+    </Sheet>
   );
 }

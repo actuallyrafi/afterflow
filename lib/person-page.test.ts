@@ -55,3 +55,17 @@ test("D24: the positioning line is the new one everywhere; the old landing line 
   const landing = fs.readFileSync("app/page.tsx", "utf8");
   assert.doesNotMatch(landing, /match you with strangers|score anyone|It started at the/);
 });
+
+test("D27: 'Other ways to reach {name}' is one collapsed row that opens inline", () => {
+  const sayHi = fs.readFileSync("components/say-hi.tsx", "utf8");
+  assert.match(sayHi, /\{others\.length \? \(\s*<OtherWays first=\{first\}>/, "hidden when there are no other ways");
+  const fn = sayHi.slice(sayHi.indexOf("function OtherWays"));
+  assert.match(fn, /useState\(false\)/, "starts collapsed");
+  assert.match(fn, /aria-expanded=\{open\}/);
+  assert.match(fn, /Other ways to reach \{first\}/);
+  assert.match(fn, /CHANNEL_ICON\[child\.props\.option\.channel\]/, "a small icon per app");
+  assert.match(fn, /inert=\{!open\}/, "collapsed rows can't be tabbed to");
+  const css = fs.readFileSync("app/globals.css", "utf8");
+  assert.match(css, /\.other-ways-body \{ display: grid; grid-template-rows: 0fr;/);
+  assert.match(css, /prefers-reduced-motion: reduce\) \{ \.other-ways-body/);
+});

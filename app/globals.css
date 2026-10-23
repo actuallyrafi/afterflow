@@ -40,9 +40,11 @@
 [data-tod="evening"] { --bg: #f3efea; }
 [data-tod="night"] { --bg: #efeff1; }
 
-@media (prefers-color-scheme: dark) {
-  :root,
-  [data-tod] {
+/* D29: dark follows <html data-theme="dark"> (System, Light or Dark; set before first paint). */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+@media all {
+  :root[data-theme="dark"] {
     --bg: #0e0f12;
     --panel: #1a1c21;
     --fill: #262930;
@@ -166,14 +168,12 @@ button, a { touch-action: manipulation; }
 .hue-4 { --hb: var(--h4-tint); --hf: var(--h4-deep); }
 .hue-5 { --hb: var(--h5-tint); --hf: var(--h5-deep); }
 .hue-6 { --hb: var(--h6-tint); --hf: var(--h6-deep); }
-@media (prefers-color-scheme: dark) {
-  .hue-1 { --hb: color-mix(in srgb, var(--h1-deep) 34%, var(--panel)); --hf: var(--h1-tint); }
-  .hue-2 { --hb: color-mix(in srgb, var(--h2-deep) 34%, var(--panel)); --hf: var(--h2-tint); }
-  .hue-3 { --hb: color-mix(in srgb, var(--h3-deep) 34%, var(--panel)); --hf: var(--h3-tint); }
-  .hue-4 { --hb: color-mix(in srgb, var(--h4-deep) 34%, var(--panel)); --hf: var(--h4-tint); }
-  .hue-5 { --hb: color-mix(in srgb, var(--h5-deep) 34%, var(--panel)); --hf: var(--h5-tint); }
-  .hue-6 { --hb: color-mix(in srgb, var(--h6-deep) 34%, var(--panel)); --hf: var(--h6-tint); }
-}
+:root[data-theme="dark"] .hue-1 { --hb: color-mix(in srgb, var(--h1-deep) 34%, var(--panel)); --hf: var(--h1-tint); }
+  :root[data-theme="dark"] .hue-2 { --hb: color-mix(in srgb, var(--h2-deep) 34%, var(--panel)); --hf: var(--h2-tint); }
+  :root[data-theme="dark"] .hue-3 { --hb: color-mix(in srgb, var(--h3-deep) 34%, var(--panel)); --hf: var(--h3-tint); }
+  :root[data-theme="dark"] .hue-4 { --hb: color-mix(in srgb, var(--h4-deep) 34%, var(--panel)); --hf: var(--h4-tint); }
+  :root[data-theme="dark"] .hue-5 { --hb: color-mix(in srgb, var(--h5-deep) 34%, var(--panel)); --hf: var(--h5-tint); }
+  :root[data-theme="dark"] .hue-6 { --hb: color-mix(in srgb, var(--h6-deep) 34%, var(--panel)); --hf: var(--h6-tint); }
 .mark {
   flex: none; position: relative; display: grid; place-items: center; border-radius: 40%;
   font-family: var(--font-round); font-weight: 800; background: var(--hb); color: var(--hf); user-select: none;
@@ -306,16 +306,14 @@ dialog.sheet.closing::backdrop { animation: fade-out 0.24s ease-in both; }
 }
 
 /* Dark: follow the system everywhere, not just the tokens. */
-@media (prefers-color-scheme: dark) {
-  .grab { background: rgb(255 255 255 / 0.28); }
-  .chev { color: var(--faint); }
-  .tile-ok { background: color-mix(in srgb, var(--h3-deep) 30%, var(--panel)); color: var(--h3-tint); }
-  .toggle[aria-checked="true"] { background: #30a14e; }
-  .btn:disabled { color: #6f737b; }
-  .toast { box-shadow: 0 10px 30px rgb(0 0 0 / 0.5); }
-  .panel, .group, .field, .note:not(.private) { box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.06); }
-  ::selection { background: var(--h4-deep); color: #fff; }
-}
+:root[data-theme="dark"] .grab { background: rgb(255 255 255 / 0.28); }
+  :root[data-theme="dark"] .chev { color: var(--faint); }
+  :root[data-theme="dark"] .tile-ok { background: color-mix(in srgb, var(--h3-deep) 30%, var(--panel)); color: var(--h3-tint); }
+  :root[data-theme="dark"] .toggle[aria-checked="true"] { background: #30a14e; }
+  :root[data-theme="dark"] .btn:disabled { color: #6f737b; }
+  :root[data-theme="dark"] .toast { box-shadow: 0 10px 30px rgb(0 0 0 / 0.5); }
+  :root[data-theme="dark"] .panel, :root[data-theme="dark"] .group, :root[data-theme="dark"] .field, :root[data-theme="dark"] .note:not(.private) { box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.06); }
+  :root[data-theme="dark"] ::selection { background: var(--h4-deep); color: #fff; }
 
 /* Demo label: a hairline capsule beside a name, legible in both schemes. */
 .demo-tag { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; margin-left: 6px; border-radius: 999px; font-family: var(--font-inter), system-ui, sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; line-height: 1; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); vertical-align: 2px; white-space: nowrap; flex: none; }
@@ -432,3 +430,11 @@ dialog.sheet.closing::backdrop { animation: fade-out 0.24s ease-in both; }
 @media (prefers-reduced-motion: reduce) { .recap-done .mark-stack > .mark { animation: none; } }
 .seg-dot { position: absolute; top: 5px; right: 7px; width: 7px; height: 7px; border-radius: 999px; background: var(--live-deep); box-shadow: 0 0 0 1.5px var(--fill); }
 .seg button[aria-checked="true"] .seg-dot { box-shadow: 0 0 0 1.5px var(--panel); }
+
+/* D27: "Other ways to reach {name}" opens inline. */
+.other-ways-toggle { display: flex; width: 100%; align-items: center; gap: 10px; min-height: 44px; border-radius: 12px; }
+.other-ways-chev { transform: rotate(90deg); transition: transform 0.25s var(--ease-sheet, ease); }
+.other-ways-toggle[aria-expanded="true"] .other-ways-chev { transform: rotate(-90deg); }
+.other-ways-body { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 0.28s var(--ease-sheet, ease), opacity 0.2s ease; }
+.other-ways-body[data-open] { grid-template-rows: 1fr; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .other-ways-body, .other-ways-chev { transition: none; } }

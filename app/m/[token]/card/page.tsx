@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CHANNEL_ICON, ContactWay, contactError } from "@/components/contact-fields";
+import { AppearanceControl } from "@/components/theme";
 import { DeleteCardSheet } from "@/components/delete-card-sheet";
 import { PersonalQr } from "@/components/personal-qr";
 import { InstallHint } from "@/components/pwa";
@@ -367,6 +368,7 @@ export default function MyCard() {
                 onClick={() => void toggleReminder()}
               />
             </div>
+            <AppearanceControl />
           </div>
 
           {/* Danger zone: far below everything else so it can't be hit by accident (v4.1b, per Tanvir). */}

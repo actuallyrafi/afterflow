@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { defaultOpener, firstOf, planHandoff, type Handoff } from "@/lib/handoff";
 import { CHANNEL_LABEL, parseContact, type Channel } from "@/lib/survey";
 import { Icon, type IconName } from "./ui/icons";
@@ -155,14 +155,11 @@ export function SayHi({
           <Actions option={hand} primary message={message} onCopy={copy} beforeOpen={beforeOpen} iconCopy />
         </div>
         {others.length ? (
-          <div className="mt-4 border-t-[0.5px] border-line pt-3">
-            <h3 className="mb-1 text-[14px] font-semibold text-muted">Other ways to reach {first}</h3>
-            <ul>
-              {others.map((option) => (
-                <WayRow key={option.channel} option={option} starred={option.channel === preferred} message={message} onCopy={copy} beforeOpen={beforeOpen} />
-              ))}
-            </ul>
-          </div>
+          <OtherWays first={first}>
+            {others.map((option) => (
+              <WayRow key={option.channel} option={option} starred={option.channel === preferred} message={message} onCopy={copy} beforeOpen={beforeOpen} />
+            ))}
+          </OtherWays>
         ) : null}
       </section>
     );
@@ -194,6 +191,39 @@ export function SayHi({
         ))}
       </ul>
     </section>
+  );
+}
+
+/**
+ * D27: "Other ways to reach {name}" as one row that opens inline. Starts collapsed; shows a small
+ * icon per app (no number). Hidden entirely when there are no other ways (the caller skips it).
+ */
+function OtherWays({ first, children }: { first: string; children: React.ReactElement<{ option: Handoff }>[] }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div className="mt-4 border-t-[0.5px] border-line pt-1">
+      <button
+        type="button"
+        className="other-ways-toggle"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="flex-1 text-left text-[14px] font-semibold text-muted">Other ways to reach {first}</span>
+        <span className="flex items-center gap-1 text-muted" aria-hidden="true">
+          {children.map((child) => (
+            <Icon key={child.props.option.channel} name={CHANNEL_ICON[child.props.option.channel]} size={16} />
+          ))}
+        </span>
+        <Icon name="chev" size={16} className="other-ways-chev text-muted" />
+      </button>
+      <div id={id} className="other-ways-body" data-open={open ? "" : undefined} inert={!open}>
+        <div className="min-h-0 overflow-hidden">
+          <ul>{children}</ul>
+        </div>
+      </div>
+    </div>
   );
 }
 

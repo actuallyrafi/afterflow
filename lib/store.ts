@@ -49,6 +49,8 @@ export type MatchRow = {
   /** One note both people see and either can edit. */
   sharedNote: string;
   sharedNoteAt: string | null;
+  /** v4.1e: the profile id that last changed the shared note (null on older rows). */
+  sharedNoteBy: string | null;
   aMuted: boolean;
   bMuted: boolean;
   /** The one reminder was shown or dismissed for that side; it never comes back. */
@@ -82,6 +84,17 @@ export function helloVia(value: unknown): HelloVia | null {
 }
 
 export type MatchPatch = Partial<Omit<MatchRow, "id" | "aId" | "bId" | "createdAt">>;
+/**
+ * A patch, or a function that works the patch out from the freshest row inside the store's write
+ * (so a guard such as "only if the shared note hasn't changed since I read it" can't race).
+ * Returning null means "don't write"; patchMatch then returns the row as it is.
+ */
+export type MatchUpdate = MatchPatch | ((row: MatchRow) => MatchPatch | null);
+
+export function resolveUpdate(row: MatchRow, update: MatchUpdate): MatchRow | null {
+  const patch = typeof update === "function" ? update(row) : update;
+  return patch ? applyMatchPatch(row, patch) : null;
+}
 
 export type NewMatch = {
   aId: string;
@@ -119,7 +132,7 @@ export type Store = {
   getMatchById(id: string): Promise<MatchRow | null>;
   listMatches(): Promise<MatchRow[]>;
   listMatchesFor(profileId: string): Promise<MatchRow[]>;
-  patchMatch(id: string, patch: MatchPatch): Promise<MatchRow | null>;
+  patchMatch(id: string, patch: MatchUpdate): Promise<MatchRow | null>;
   deleteMatch(id: string): Promise<void>;
   addBlock(blockerId: string, blockedId: string): Promise<BlockRecord>;
   removeBlock(blockerId: string, blockedId: string): Promise<void>;
@@ -216,6 +229,7 @@ export function normalizeMatch(raw: unknown): MatchRow | null {
     bNote: str(row.bNote ?? row.b_note),
     sharedNote: str(row.sharedNote),
     sharedNoteAt: nullable(row.sharedNoteAt),
+    sharedNoteBy: nullable(row.sharedNoteBy),
     aMuted: bool(row.aMuted),
     bMuted: bool(row.bMuted),
     aReminderDone: bool(row.aReminderDone),
@@ -252,6 +266,7 @@ export function initMatch(input: NewMatch): MatchRow {
     bNote: (swapped ? input.aNote : input.bNote) ?? "",
     sharedNote: "",
     sharedNoteAt: null,
+    sharedNoteBy: null,
     aMuted: false,
     bMuted: false,
     aReminderDone: false,
@@ -316,6 +331,7 @@ export function applyProfilePatch(profile: Profile, patch: ProfilePatch): Profil
 export const MATCH_STATE_KEYS = [
   "sharedNote",
   "sharedNoteAt",
+  "sharedNoteBy",
   "aMuted",
   "bMuted",
   "aReminderDone",
@@ -588,7 +604,8 @@ function createSqliteStore(filename: string): Store {
     async patchMatch(id, patch) {
       const current = await store.getMatchById(id);
       if (!current) return null;
-      const next = applyMatchPatch(current, patch);
+      const next = resolveUpdate(current, patch);
+      if (!next) return current;
       writeMatch(next);
       return next;
     },
@@ -736,9 +753,11 @@ function createJsonStore(filename: string): Store {
       const data = read();
       const index = data.matches.findIndex((item) => item.id === id);
       if (index < 0) return null;
-      data.matches[index] = applyMatchPatch(data.matches[index], patch);
+      const next = resolveUpdate(data.matches[index], patch);
+      if (!next) return data.matches[index];
+      data.matches[index] = next;
       write(data);
-      return data.matches[index];
+      return next;
     },
     async deleteMatch(id) {
       const data = read();

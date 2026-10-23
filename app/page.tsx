@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { EventQr } from "@/components/event-qr";
+import { ThemeToggle } from "@/components/theme";
 import { LANDING_INSTALL_LINE } from "@/lib/install-guide";
 import { savedToken } from "@/lib/api";
 import { EVENT_LINE } from "@/lib/event";
@@ -66,7 +67,10 @@ export default function HomePage() {
   );
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 pt-[calc(env(safe-area-inset-top)+40px)] pb-8">
+    <main className="relative mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 pt-[calc(env(safe-area-inset-top)+40px)] pb-8">
+      <header className="absolute top-[calc(env(safe-area-inset-top)+12px)] right-4">
+        <ThemeToggle />
+      </header>
       <div className="grid items-center gap-10 md:grid-cols-[1.1fr_0.9fr]">
         <div>
           <span className="pill">{EVENT_LINE}</span>

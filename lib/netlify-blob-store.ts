@@ -1,7 +1,7 @@
 import { getStore as getBlobStore, type Store as NetlifyStore } from "@netlify/blobs";
 import { normalizeEventBook, type EventBook } from "./events";
 import {
-  applyMatchPatch,
+  resolveUpdate,
   applyProfilePatch,
   buildProfile,
   canonicalPair,
@@ -10,7 +10,7 @@ import {
   normalizeProfile,
   STORE_VERSION,
   type BlockRecord,
-  type MatchPatch,
+  type MatchUpdate,
   type MatchRow,
   type NewMatch,
   type NewProfile,
@@ -162,13 +162,15 @@ export function createNetlifyBlobStore(injected?: BlobClient): Store {
     return rows.filter((row): row is MatchRow => Boolean(row));
   }
 
-  async function updateMatch(id: string, mutate: (row: MatchRow) => MatchRow): Promise<MatchRow | null> {
+  async function updateMatch(id: string, mutate: (row: MatchRow) => MatchRow | null): Promise<MatchRow | null> {
     const key = connectionKey(id);
     for (let attempt = 0; attempt < 5; attempt++) {
       const current = await blobs().getWithMetadata(key, { type: "json", ...STRONG });
       const row = current?.data ? normalizeMatch(current.data) : null;
       if (!current || !row) return null;
+      // Worked out again from the fresh row on every attempt, so a lost etag race never writes stale data.
       const next = mutate(row);
+      if (!next) return row;
       const options = current.etag ? { onlyIfMatch: current.etag } : undefined;
       const wrote = await blobs().setJSON(key, next, options);
       if (wrote.modified || !current.etag) return next;
@@ -339,8 +341,8 @@ export function createNetlifyBlobStore(injected?: BlobClient): Store {
       return readMatches(ids);
     },
 
-    async patchMatch(id: string, patch: MatchPatch) {
-      return updateMatch(id, (row) => applyMatchPatch(row, patch));
+    async patchMatch(id: string, patch: MatchUpdate) {
+      return updateMatch(id, (row) => resolveUpdate(row, patch));
     },
 
     async deleteMatch(id: string) {

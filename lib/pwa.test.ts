@@ -26,7 +26,8 @@ test("manifest: Afterflow, standalone, design-token colours, 192/512/maskable ic
   assert.equal(m.background_color, PWA_COLORS.ink);
   assert.ok(css.includes(`--bg: ${PWA_COLORS.light};`) && css.includes(`--bg: ${PWA_COLORS.dark};`) && css.includes(`--ink: ${PWA_COLORS.ink};`), "colours come from the tokens");
   const layout = fs.readFileSync("app/layout.tsx", "utf8");
-  assert.ok(layout.includes(PWA_COLORS.dark), "dark theme-color meta");
+  assert.match(layout, /__html: THEME_BOOT/, "D29: theme-color meta written by the head script from THEME_COLOR (= PWA_COLORS)");
+  assert.doesNotMatch(layout, /themeColor:/, "no second, media-based theme-color from Next");
   assert.ok(m.icons.some((i) => i.sizes === "192x192"));
   assert.ok(m.icons.some((i) => i.sizes === "512x512" && i.purpose === "any"));
   assert.ok(m.icons.some((i) => i.purpose === "maskable"));

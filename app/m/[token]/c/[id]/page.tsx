@@ -14,6 +14,7 @@ import { hueOf, Mark } from "@/components/ui/mark";
 import { api, shortDate } from "@/lib/api";
 import type { ConnectionCard, EventEditExtras, EventsView } from "@/lib/connections";
 import { firstOf } from "@/lib/handoff";
+import { NOTE_CONFLICT, noteUpdatedLine } from "@/lib/notes";
 
 type Loaded = {
   connection: ConnectionCard;
@@ -53,6 +54,25 @@ export default function ConnectionPage() {
     void load();
   }, [load]);
 
+  // D26: coming back to the page (switching apps, unlocking, refocusing) refetches, so a shared
+  // note the other person changed shows up. Not live: no polling once connected, no typing state.
+  useEffect(() => {
+    let last = 0;
+    const refresh = () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < 1500) return;
+      last = Date.now();
+      void load();
+    };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", refresh);
+    };
+  }, [load]);
+
   // While someone hasn't said yes yet, check back now and then. Once connected, nothing polls.
   const waiting = data && !data.connection.mutual;
   useEffect(() => {
@@ -77,6 +97,21 @@ export default function ConnectionPage() {
     }
     if (result.data.connection) setData((current) => (current ? { ...current, connection: result.data.connection! } : current));
     return result.data;
+  }
+
+  /** D26: saves against the version this page last saw; a newer note from them comes back as 409. */
+  async function saveShared(text: string): Promise<boolean | string> {
+    if (!data) return false;
+    setError("");
+    const result = await api<{ connection?: ConnectionCard; conflict?: boolean }>(`/api/profiles/${token}/connections/${id}`, {
+      method: "POST",
+      body: { action: "shared_note", text, base: data.connection.sharedNoteAt },
+    });
+    if (result.data.connection) setData((current) => (current ? { ...current, connection: result.data.connection! } : current));
+    if (result.ok) return true;
+    if (result.status === 409 && result.data.conflict) return NOTE_CONFLICT(firstOf(data.connection.other.name));
+    setError(result.data.error || "Couldn't save that. Try again.");
+    return false;
   }
 
   async function createEvent(name: string, date: string): Promise<string | null> {
@@ -222,7 +257,8 @@ export default function ConnectionPage() {
               value={connection.sharedNote}
               placeholder={`Something you and ${first} want to remember`}
               max={280}
-              onSave={async (text) => Boolean(await act("shared_note", { text }))}
+              onSave={saveShared}
+              updated={noteUpdatedLine(connection, Date.now(), Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London")}
             />
             <NoteCard
               kind="private"

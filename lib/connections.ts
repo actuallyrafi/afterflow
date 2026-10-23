@@ -41,6 +41,9 @@ export type ConnectionCard = {
   hello: { via: HelloVia; at: string } | null;
   /** Both people see this, once you've both said yes. */
   sharedNote: string;
+  /** v4.1e: when the shared note last changed, and whether that was them (for "Updated by {name}"). */
+  sharedNoteAt: string | null;
+  sharedNoteByThem: boolean;
   myAnswer: string;
   metAt: string;
   /** The event you filed them under. Yours only; their filing of you is theirs. */
@@ -179,6 +182,8 @@ function toCard(match: MatchRow, me: Profile, other: Profile, book?: EventBook):
     mutualAt: mutual ? (match.mutualAt ?? match.createdAt) : null,
     hello: mutual && via && viaAt ? { via, at: viaAt } : null,
     sharedNote: mutual ? match.sharedNote : "",
+    sharedNoteAt: mutual ? match.sharedNoteAt : null,
+    sharedNoteByThem: Boolean(mutual && match.sharedNoteBy && match.sharedNoteBy !== me.id),
     myAnswer: me.answer,
     metAt: match.createdAt,
     eventId: book?.filed[match.id] ?? null,
@@ -512,7 +517,13 @@ export async function addMet(
   return { status: 200, body: { connection: toCard(match, me, other, await loadBook(store, me)) } };
 }
 
-export type ActionBody = { action?: unknown; text?: unknown; via?: unknown };
+export type ActionBody = {
+  action?: unknown;
+  text?: unknown;
+  via?: unknown;
+  /** shared_note: the sharedNoteAt this device last saw (null = it saw no note yet). Omitted by older clients. */
+  base?: unknown;
+};
 
 export async function getConnection(
   store: Store,
@@ -550,7 +561,7 @@ export async function actOnConnection(
   matchId: string,
   body: ActionBody,
 ): Promise<
-  Result<{ connection: ConnectionCard } | { declined: true } | { removed: true } | { blocked: true }>
+  Result<{ connection: ConnectionCard } | { declined: true } | { removed: true } | { blocked: true } | { error: string; conflict: true; connection: ConnectionCard }>
 > {
   const me = await store.getProfileByToken(token);
   if (!me) return { status: 404, body: { error: "This card isn't available." } };
@@ -639,12 +650,30 @@ export async function actOnConnection(
       return card(await store.patchMatch(match.id, { [mine("Note")]: cleanLine(body.text, NOTE_MAX) }));
     case "shared_note": {
       if (!mutual) return { status: 400, body: { error: "The shared note opens once you've both said yes." } };
-      return card(
-        await store.patchMatch(match.id, {
-          sharedNote: cleanLine(body.text, SHARED_NOTE_MAX),
-          sharedNoteAt: new Date().toISOString(),
-        }),
-      );
+      // D26: write only if nobody changed the note since this device read it (checked inside the
+      // store's etag-guarded write, so it can't race). Older clients send no base: last write wins.
+      const text = cleanLine(body.text, SHARED_NOTE_MAX);
+      const checkBase = body.base !== undefined;
+      const base = typeof body.base === "string" ? body.base : null;
+      let stale = false;
+      const saved = await store.patchMatch(match.id, (row) => {
+        if (row.sharedNote === text) return null;
+        if (checkBase && row.sharedNoteAt !== base) {
+          stale = true;
+          return null;
+        }
+        // sharedNoteAt doubles as the note's version, so it must always move forward (two saves in the same ms).
+        const at = Math.max(Date.now(), (Date.parse(row.sharedNoteAt ?? "") || 0) + 1);
+        return { sharedNote: text, sharedNoteAt: new Date(at).toISOString(), sharedNoteBy: me.id };
+      });
+      if (stale && saved) {
+        const theirs = toCard(saved, me, other, book);
+        return {
+          status: 409,
+          body: { error: `${firstOf(other.name)} changed this note just now.`, conflict: true, connection: theirs },
+        };
+      }
+      return card(saved);
     }
     case "hello_opened": {
       // v4.1d: a Say hi hand-off was opened (or, Discord with its link off, the message copied).
