@@ -1,8 +1,13 @@
 import { timingSafeEqual } from "node:crypto";
 import type { Store } from "./store";
 
+/**
+ * The organiser view (stats and Delete all data) is locked unless ORGANISER_PASSCODE is set.
+ * There is no default passcode: with the variable unset or empty, every request is refused.
+ */
 export function organiserAuthorised(header: string | null): boolean {
-  const expected = process.env.ORGANISER_PASSCODE || "afterflow";
+  const expected = process.env.ORGANISER_PASSCODE ?? "";
+  if (!expected) return false;
   const given = Buffer.from(header ?? "");
   const want = Buffer.from(expected);
   if (given.length !== want.length) {

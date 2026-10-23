@@ -95,7 +95,7 @@ All optional locally. Never commit real values.
 | Variable | Purpose |
 | --- | --- |
 | `PORT` | Listen port, default `4721` |
-| `ORGANISER_PASSCODE` | Passcode for `/organiser` (default `afterflow`; change it before an event) |
+| `ORGANISER_PASSCODE` | Passcode for `/organiser`. Required: there is no default, and `/organiser` refuses everyone while it is unset. On Netlify, set it as a secret site environment variable (Site configuration → Environment variables), not in code |
 | `STORAGE` | Force a store, e.g. `netlify-blobs` |
 | `SQLITE_PATH`, `JSON_PATH` | Local file locations |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Postgres storage. The service key is server-only |
@@ -103,7 +103,7 @@ All optional locally. Never commit real values.
 
 ### Deploy
 
-Netlify: `netlify.toml` runs `npm run build` and stores cards in Netlify Blobs.
+Netlify: `netlify.toml` runs `npm run build` and stores cards in Netlify Blobs. Set `ORGANISER_PASSCODE` in the Netlify site's environment variables before deploying, or the organiser view stays locked.
 
 ```bash
 npx netlify-cli deploy --prod
@@ -119,7 +119,7 @@ Vercel has no durable disk, so use Supabase there: set `SUPABASE_URL`, `SUPABASE
 
 ### Organiser view
 
-`/organiser` (passcode) shows totals only, never per person and never ranked: **Talked again** (private marks, added up) and **Both said yes** (mutual confirms), with connections requested and cards as small context. It also has **Delete all data**.
+`/organiser` (passcode from `ORGANISER_PASSCODE`; locked when it is unset) shows totals only, never per person and never ranked: **Talked again** (private marks, added up) and **Both said yes** (mutual confirms), with connections requested and cards as small context. It also has **Delete all data**.
 
 ### Product docs
 
