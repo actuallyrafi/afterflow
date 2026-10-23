@@ -1,72 +1,71 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import type { OrganiserStats } from "@/lib/organiser";
+import { useCallback, useEffect, useState } from "react";
+import { LinkRow, OnceNotice, dayLabel } from "@/components/organiser";
+import { Icon } from "@/components/ui/icons";
+import { Spinner } from "@/components/ui/chrome";
+import type { EventSummary } from "@/lib/organiser";
+import { MASTER_KEY, eventKeyName, joinUrl, orgFetch, organiserUrl, readSession, writeSession } from "@/lib/organiser-client";
 
-type Stats = Partial<OrganiserStats> & { message?: string; error?: string };
+const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
 
-export default function OrganiserPage() {
-  const [passcode, setPasscode] = useState("");
+/**
+ * v4.1h organiser landing (master code). Make an event in one step and get its attendee join link and
+ * the private organiser link to send to that event's organiser. Totals live on each event's page.
+ */
+export default function OrganiserHome() {
+  const [code, setCode] = useState("");
   const [ready, setReady] = useState(false);
-  const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState("");
-  const [confirming, setConfirming] = useState(false);
-  const [deleted, setDeleted] = useState(false);
+  const [events, setEvents] = useState<EventSummary[] | null>(null);
+  const [name, setName] = useState("");
+  const [date, setDate] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [made, setMade] = useState<{ event: EventSummary; key: string } | null>(null);
+  const [origin, setOrigin] = useState("");
 
   useEffect(() => {
-    const saved = sessionStorage.getItem("afterflow.organiser");
+    setOrigin(window.location.origin);
+    setDate(today());
+    const saved = readSession(MASTER_KEY);
     if (saved) {
-      setPasscode(saved);
+      setCode(saved);
       setReady(true);
     }
   }, []);
 
-  useEffect(() => {
-    if (!ready || !passcode) return;
-    let stop = false;
-    async function load() {
-      try {
-        const response = await fetch("/api/organiser", {
-          cache: "no-store",
-          headers: { "x-organiser-passcode": passcode },
-        });
-        const payload = (await response.json()) as Stats;
-        if (stop) return;
-        if (!response.ok) {
-          setError(payload.error || "Wrong passcode.");
-          setReady(false);
-          sessionStorage.removeItem("afterflow.organiser");
-          return;
-        }
-        setError("");
-        setStats(payload);
-      } catch {
-        if (!stop) setError("Could not load counts.");
-      }
-    }
-    void load();
-    const timer = window.setInterval(() => void load(), 3000);
-    return () => {
-      stop = true;
-      window.clearInterval(timer);
-    };
-  }, [ready, passcode]);
-
-  async function removeAll() {
-    const response = await fetch("/api/organiser", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-organiser-passcode": passcode },
-      body: JSON.stringify({ action: "delete-all" }),
-    });
-    const payload = (await response.json()) as Stats;
-    if (!response.ok) {
-      setError(payload.error || "Could not delete.");
+  const load = useCallback(async (master: string) => {
+    const result = await orgFetch<{ events: EventSummary[] }>("/api/organiser", { master });
+    if (!result.ok) {
+      setError(result.data.error || "That link or code doesn't work.");
+      setReady(false);
+      writeSession(MASTER_KEY, "");
       return;
     }
-    setStats(payload);
-    setDeleted(true);
-    setConfirming(false);
+    setError("");
+    setEvents(result.data.events);
+  }, []);
+
+  useEffect(() => {
+    if (ready && code) void load(code);
+  }, [ready, code, load]);
+
+  async function create() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    const result = await orgFetch<{ event: EventSummary; key: string }>("/api/organiser", { master: code }, { action: "create", name, date });
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.data.error || "Couldn't make the event. Try again.");
+      return;
+    }
+    // This tab can open the event straight away; the link itself is shown once below.
+    writeSession(eventKeyName(result.data.event.id), result.data.key);
+    setMade(result.data);
+    setName("");
+    void load(code);
   }
 
   return (
@@ -83,65 +82,107 @@ export default function OrganiserPage() {
           className="mt-6 flex flex-col gap-3"
           onSubmit={(event) => {
             event.preventDefault();
-            sessionStorage.setItem("afterflow.organiser", passcode);
+            writeSession(MASTER_KEY, code);
             setReady(true);
             setError("");
           }}
         >
-          <label className="field">
-            <span className="field-label">Passcode</span>
-            <input id="passcode" type="password" value={passcode} onChange={(event) => setPasscode(event.target.value)} />
+          <p className="text-[15px] leading-[21px]">
+            Got an organiser link for one event? Just open it. This page is for making events, with the master code.
+          </p>
+          <label className="field" htmlFor="passcode">
+            <span className="field-label">Master code</span>
+            <input id="passcode" type="password" autoComplete="off" value={code} onChange={(event) => setCode(event.target.value)} />
           </label>
-          {error ? <p className="text-[14px] text-hot">{error}</p> : null}
-          <button type="submit" className="btn btn-lg btn-ink w-full">
+          {error ? (
+            <p role="alert" className="text-[14px] text-hot">
+              {error}
+            </p>
+          ) : null}
+          <button type="submit" className="btn btn-lg btn-ink w-full" disabled={!code}>
             Open
           </button>
         </form>
+      ) : made ? (
+        <section className="mt-6" aria-labelledby="made-title" id="event-made">
+          <div className="tile tile-ok size-[52px]">
+            <Icon name="check" size={26} />
+          </div>
+          <h2 id="made-title" className="round mt-3 text-[24px] leading-7 font-black">
+            {made.event.name} is ready
+          </h2>
+          <p className="mt-1 text-[15px] text-muted">{dayLabel(made.event)}</p>
+          <div className="group mt-4">
+            <LinkRow id="join-link" label="Attendee link" url={joinUrl(origin, made.event.id)} hint="Share it or show it as a QR at the door. People join this event when they make or open their card." />
+          </div>
+          <div className="group mt-3">
+            <LinkRow id="organiser-link" label="Private organiser link" url={organiserUrl(origin, made.event.id, made.key)} hint="Opens this event's totals. Only this event." />
+          </div>
+          <OnceNotice />
+          <Link href={`/organiser/${made.event.id}`} className="btn btn-lg btn-ink mt-4 w-full">
+            Open the event&apos;s page
+          </Link>
+          <button type="button" className="btn btn-lg btn-plain-ink mt-1 w-full" onClick={() => setMade(null)}>
+            Done
+          </button>
+        </section>
       ) : (
         <div className="mt-6">
-          {deleted ? <p className="mb-4 text-[17px] font-semibold">All data deleted</p> : null}
-          <Headline stats={stats} />
-          <p className="mt-4 text-[13px] text-muted">
-            Context: {stats?.connectionsRequested ?? "…"} connections requested · {stats?.signups ?? "…"} cards. Refreshes every few seconds.
-          </p>
-          {error ? <p className="mt-3 text-[14px] text-hot">{error}</p> : null}
-          {!confirming ? (
-            <button type="button" onClick={() => setConfirming(true)} className="btn btn-lg btn-hot mt-8 w-full">
-              Delete all data
+          <form
+            className="panel p-4"
+            aria-labelledby="new-event-title"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void create();
+            }}
+          >
+            <h2 id="new-event-title" className="round text-[20px] leading-6 font-black">
+              New event
+            </h2>
+            <p className="mt-1 text-[14px] leading-5 text-muted">You&apos;ll get the attendee link and a private organiser link in one go.</p>
+            <label className="field !bg-[var(--fill)] mt-3" htmlFor="event-name">
+              <span className="field-label">Name</span>
+              <input id="event-name" value={name} maxLength={60} autoComplete="off" onChange={(event) => setName(event.target.value)} placeholder="Builders' Breakfast" />
+            </label>
+            <label className="field !bg-[var(--fill)] mt-2" htmlFor="event-date">
+              <span className="field-label">Day</span>
+              <input id="event-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+            </label>
+            {error ? (
+              <p role="alert" className="mt-2 text-[14px] text-hot">
+                {error}
+              </p>
+            ) : null}
+            <button type="submit" className="btn btn-lg btn-ink mt-3 w-full" disabled={!name.trim() || busy} aria-busy={busy}>
+              {busy ? <Spinner /> : null}
+              Make event and links
             </button>
-          ) : (
-            <div className="panel mt-8 p-4">
-              <p className="text-[15px]">This wipes every card and connection.</p>
-              <button type="button" onClick={() => void removeAll()} className="btn btn-lg btn-hot mt-3 w-full">
-                Yes, delete everything
-              </button>
-              <button type="button" onClick={() => setConfirming(false)} className="btn btn-plain mt-1 w-full">
-                Cancel
-              </button>
-            </div>
-          )}
+          </form>
+          <h2 className="tag mx-4 mt-8 mb-2">Events</h2>
+          <ul className="group" aria-label="Events">
+            {events === null ? (
+              <li className="item flush">
+                <span className="s">Loading…</span>
+              </li>
+            ) : (
+              events.map((event) => (
+                <li key={event.id}>
+                  <Link href={`/organiser/${event.id}`} className="item flush items-center">
+                    <span className="min-w-0 flex-1">
+                      <span className="t block truncate">{event.name}</span>
+                      <span className="s block">
+                        {dayLabel(event)} · {event.hasLink ? "Organiser link made" : "No organiser link yet"}
+                      </span>
+                    </span>
+                    <Icon name="chev" size={18} className="text-faint" />
+                  </Link>
+                </li>
+              ))
+            )}
+          </ul>
+          <p className="mx-4 mt-2 text-[13px] leading-[18px] text-muted">Each event&apos;s organiser sees only that event. Open one to see its totals.</p>
         </div>
       )}
     </main>
-  );
-}
-
-function Headline({ stats }: { stats: Stats | null }) {
-  const value = (n: number | undefined) => (stats && typeof n === "number" ? n : "…");
-  return (
-    <div className="grid grid-cols-2 gap-3">
-      <section className="panel p-4" aria-label="Talked again">
-        <p className="text-[13px] font-semibold text-muted">Talked again</p>
-        <p className="round mt-1 text-[44px] leading-none font-black">{value(stats?.talkedAgainMarks)}</p>
-        <p className="mt-2 text-[12px] leading-4 text-muted">
-          Private marks, added up. Across {value(stats?.pairsTalkedAgain)} connections.
-        </p>
-      </section>
-      <section className="panel p-4" aria-label="Mutual confirms">
-        <p className="text-[13px] font-semibold text-muted">Both said yes</p>
-        <p className="round mt-1 text-[44px] leading-none font-black">{value(stats?.mutualConfirms)}</p>
-        <p className="mt-2 text-[12px] leading-4 text-muted">Connections confirmed by both people.</p>
-      </section>
-    </div>
   );
 }

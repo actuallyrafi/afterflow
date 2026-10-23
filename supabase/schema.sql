@@ -99,3 +99,11 @@ create table if not exists event_books (
 );
 alter table event_books enable row level security;
 alter table profiles alter column reminders set default true; -- v4.1c: one gentle reminder on by default (owner-approved, 23 Oct 2026)
+
+-- v4.1h (D33): one row per organiser event. Holds the sha-256 of the organiser key, never the key.
+create table if not exists organiser_events (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table organiser_events enable row level security;

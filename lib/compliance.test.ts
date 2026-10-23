@@ -118,10 +118,14 @@ test("docs and copy match the Bible: no old pitch, truthful card copy, PRD marke
 });
 
 test("organiser headline is talked again and mutual confirms, with no per-person data", () => {
-  const page = fs.readFileSync(path.join("app", "organiser", "page.tsx"), "utf8");
-  assert.ok(page.indexOf("<Headline") < page.indexOf("Context:"));
-  assert.match(page, /Talked again/);
-  assert.match(page, /mutualConfirms/);
-  assert.equal(/Sign-ups/.test(page), false);
-  assert.equal(/rank|leaderboard|top \d/i.test(page.replace("nobody is ranked", "")), false);
+  // v4.1h: the totals now live on each event's page; the headline component is shared.
+  const page = fs.readFileSync(path.join("app", "organiser", "[eventId]", "page.tsx"), "utf8");
+  const headline = fs.readFileSync(path.join("components", "organiser.tsx"), "utf8");
+  assert.ok(page.indexOf("<Headline") < page.indexOf("connections requested"));
+  assert.match(headline, /Talked again/);
+  assert.match(headline, /mutualConfirms/);
+  for (const src of [page, headline, fs.readFileSync(path.join("app", "organiser", "page.tsx"), "utf8")]) {
+    assert.equal(/Sign-ups/.test(src), false);
+    assert.equal(/rank|leaderboard|top \d/i.test(src.replace("nobody is ranked", "")), false);
+  }
 });

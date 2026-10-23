@@ -3,7 +3,7 @@ import test from "node:test";
 import { actOnConnection, addMet, getConnection, listHome, searchPeople } from "./connections";
 import { ensureBackupPair } from "./demo-backup";
 import { REMINDER_DELAY_MS } from "./event";
-import { organiserStats } from "./organiser";
+import { createEvent, deleteEventData, eventStats, joinEvent } from "./organiser";
 import { card, tempStore } from "./test-helpers";
 
 test("people who met both say yes before either contact is revealed", async () => {
@@ -11,6 +11,9 @@ test("people who met both say yes before either contact is revealed", async () =
   const ada = await store.createProfile(card("Ada", { contact: "email:ada-secret@example.com", answer: "Bouldering in Bermondsey" }));
   const jonah = await store.createProfile({ ...card("Jonah", { contact: "whatsapp:+447700900999" }), isDemo: true });
   const stranger = await store.createProfile(card("Stranger", { contact: "discord:nope.secret" }));
+  const night = await createEvent(store, { name: "Flow night", date: "2026-11-01" });
+  if (!night.ok) throw new Error("expected event");
+  for (const person of [ada, jonah, stranger]) await joinEvent(store, night.event.id, person.id);
 
   const found = await searchPeople(store, ada.secretToken, "jon");
   assert.equal(found?.length, 1);
@@ -76,16 +79,18 @@ test("people who met both say yes before either contact is revealed", async () =
 
   assert.equal((await actOnConnection(store, jonah.secretToken, id, { action: "simulate_demo_confirm" })).status, 400);
 
-  let stats = await organiserStats(store);
+  let stats = await eventStats(store, night.event.id);
+  if (!stats) throw new Error("expected stats");
   assert.deepEqual(stats, { talkedAgainMarks: 1, pairsTalkedAgain: 1, mutualConfirms: 1, connectionsRequested: 1, signups: 3 });
   await actOnConnection(store, jonah.secretToken, id, { action: "talked_again" });
-  stats = await organiserStats(store);
-  assert.equal(stats.talkedAgainMarks, 2);
-  assert.equal(stats.pairsTalkedAgain, 1);
+  stats = await eventStats(store, night.event.id);
+  assert.equal(stats?.talkedAgainMarks, 2);
+  assert.equal(stats?.pairsTalkedAgain, 1);
   // Aggregates only: nothing per person, no names, no rankings.
   assert.equal(/ada|jonah|sam/i.test(JSON.stringify(stats)), false);
 
-  await store.deleteAll();
+  // D34: the event's delete takes its connection and the cards that were only there.
+  await deleteEventData(store, night.event.id);
   assert.equal((await store.listProfiles()).length, 0);
   assert.equal((await store.listMatches()).length, 0);
 });

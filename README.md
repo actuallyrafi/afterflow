@@ -119,7 +119,13 @@ Vercel has no durable disk, so use Supabase there: set `SUPABASE_URL`, `SUPABASE
 
 ### Organiser view
 
-`/organiser` (passcode from `ORGANISER_PASSCODE`; locked when it is unset) shows totals only, never per person and never ranked: **Talked again** (private marks, added up) and **Both said yes** (mutual confirms), with connections requested and cards as small context. It also has **Delete all data**.
+Organiser access is per event (v4.1h).
+
+- `/organiser` takes the master code (`ORGANISER_PASSCODE`; locked when it is unset). With it you can list events and make a new one (name and day) in one step. You get the attendee join link (`/join/{eventId}`) and a private organiser link (`/organiser/{eventId}#k=…`), shown once.
+- The private link opens that event only. The key sits in the URL fragment, so it never reaches server logs, and only its sha-256 is stored. **Make a new organiser link** replaces it, and the old one stops working.
+- Each event page shows totals for that event only, never per person and never ranked: **Talked again** (private marks, added up) and **Both said yes** (mutual confirms), with connections requested and cards as small context.
+- **Delete this event's data** sits in a danger zone at the bottom, behind a typed event name. It removes that event's connections and membership, plus cards that were only in that event. There is no delete-all.
+- Grok Bot London is built in: cards and connections made before events shipped (23 Oct 2026, 06:00 BST) count for it.
 
 ### Product docs
 

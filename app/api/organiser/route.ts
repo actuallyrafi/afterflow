@@ -1,35 +1,36 @@
 import { getStore } from "@/lib/get-store";
-import { organiserAuthorised, organiserStats } from "@/lib/organiser";
+import { createEvent, listEvents, summary } from "@/lib/organiser";
+import { masterAccess, reply } from "@/lib/organiser-api";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function denied() {
-  return Response.json({ error: "Wrong passcode." }, { status: 401, headers: { "Cache-Control": "no-store" } });
-}
-
+/** Master code only: the list of events (no totals here; totals are per event). */
 export async function GET(request: Request) {
-  if (!organiserAuthorised(request.headers.get("x-organiser-passcode"))) return denied();
-  const stats = await organiserStats(getStore());
-  return Response.json(stats, { headers: { "Cache-Control": "no-store" } });
+  const denied = masterAccess(request);
+  if (denied) return denied;
+  const events = await listEvents(getStore());
+  return reply({ events: events.map(summary) });
 }
 
+/**
+ * Master code only: make an event. The answer carries the organiser key once; only its hash is stored.
+ * The old global "delete-all" is gone for good (410), whoever asks.
+ */
 export async function POST(request: Request) {
-  if (!organiserAuthorised(request.headers.get("x-organiser-passcode"))) return denied();
-  let action = "";
+  let body: { action?: unknown; name?: unknown; date?: unknown } = {};
   try {
-    const body = (await request.json()) as { action?: unknown };
-    action = typeof body.action === "string" ? body.action : "";
+    body = (await request.json()) as typeof body;
   } catch {
-    return Response.json({ error: "Send JSON." }, { status: 400 });
+    return reply({ error: "Send JSON." }, 400);
   }
-  if (action !== "delete-all") {
-    return Response.json({ error: "Unknown action." }, { status: 400 });
+  if (body.action === "delete-all") {
+    return reply({ error: "Deleting everything is no longer possible. Delete one event's data from its organiser page." }, 410);
   }
-  await getStore().deleteAll();
-  const stats = await organiserStats(getStore());
-  return Response.json(
-    { ...stats, message: "All data deleted" },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  const denied = masterAccess(request);
+  if (denied) return denied;
+  if (body.action !== "create") return reply({ error: "Unknown action." }, 400);
+  const made = await createEvent(getStore(), { name: body.name, date: body.date });
+  if (!made.ok) return reply({ error: made.error }, made.status);
+  return reply({ event: summary(made.event), key: made.key });
 }

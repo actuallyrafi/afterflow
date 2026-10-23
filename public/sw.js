@@ -2,10 +2,10 @@
  * the home-screen app reopens fast. It never stores API responses, your own pages (/m/*, which carry
  * your private key, and your per-user manifest under /m/{token}/), connection or card links, or
  * anything that isn't a plain same-origin GET. Rules mirror lib/pwa.ts (swMayCache); lib/pwa.test.ts checks both. */
-const VERSION = "afterflow-v41c-1";
+const VERSION = "afterflow-v41h-1";
 const STATIC = `${VERSION}-static`;
 const SHELL = `${VERSION}-shell`;
-const NEVER = ["/api/", "/m/", "/c/", "/meet/", "/survey", "/organiser", "/demo", "/deleted"];
+const NEVER = ["/api/", "/m/", "/c/", "/meet/", "/survey", "/organiser", "/join/", "/demo", "/deleted"];
 const STATIC_PREFIXES = ["/_next/static/", "/icons/"];
 const SHELL_PATHS = ["/", "/how-we-built"];
 

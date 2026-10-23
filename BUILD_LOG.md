@@ -175,3 +175,14 @@ On the local branch v4-redesign. Preview only, not production. Pixel's motion sp
 - Reduced motion: a short slide with no stretch. Reduced transparency, high contrast, forced colours and no JavaScript each get a plain fallback. Only transform and opacity animate.
 - Segment buttons are 38px (a 44px target with the control's padding). Tabs are at least 50px. The contact tabs still show their filled dots, and tapping never draws a focus ring. Arrow keys, Home and End move through the options.
 - 120 tests pass. 75 cross-engine checks pass in each of Chromium, Firefox and WebKit.
+
+### 23 Oct 2026, 16:40 BST — v4.1h: organiser access per event, and a safer delete
+
+On the local branch v4-redesign. Preview only, not production. Per Tanvir, from his screenshot of the organiser page.
+
+- Every event now has its own organiser access. On `/organiser`, with the master code, you type the event name and day and tap once. You get the link attendees use to join and a private organiser link to send to that event's organiser, shown once with Copy and Share. The private link opens that event's totals and nothing else. "Make a new organiser link" swaps it, and the old link stops working.
+- Totals (Talked again, Both said yes, connections requested, cards) count only that event's people and connections. Still totals only: nobody is listed or ranked.
+- "Delete all data" is gone, and the old wipe now refuses. In its place, "Delete this event's data" sits in a danger zone far below everything else, as a quiet outlined button. It opens a sheet where you have to type the event's exact name before the red button works. It removes that event's connections (with their notes and marks) and who joined. A card goes only if that person was in no other event and has no other connections. Everyone else just leaves the event.
+- Grok Bot London is built in. Cards and connections from before events shipped count for it, so its totals carry on without any data being moved.
+- Keys are 256-bit, stored only as a hash, checked in constant time. A wrong key, a wrong code and an unknown event all get the same answer, and repeated wrong tries are slowed down. Organiser pages are never cached or indexed, and the service worker never stores them.
+- 131 tests pass. 88 cross-engine checks pass in each of Chromium, Firefox and WebKit.

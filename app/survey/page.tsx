@@ -1,5 +1,6 @@
 "use client";
 
+import { JOIN_EVENT_KEY } from "@/lib/organiser-client";
 import { isStandalone } from "@/components/pwa";
 import { INSTALL_PENDING_KEY, platformOf, shouldPromptInstall } from "@/lib/install-guide";
 import { DemoTag } from "@/components/ui/demo-tag";
@@ -106,7 +107,13 @@ export default function CardForm() {
     }
     setContactProblem(null);
     setSaving(true);
-    const body = { name, contacts: collected.contacts, preferred: collected.preferred, answer, consent };
+    let joinEventId: string | undefined;
+    try {
+      joinEventId = editing ? undefined : localStorage.getItem(JOIN_EVENT_KEY) || undefined;
+    } catch {
+      joinEventId = undefined;
+    }
+    const body = { name, contacts: collected.contacts, preferred: collected.preferred, answer, consent, ...(joinEventId ? { joinEventId } : {}) };
     const result = editing
       ? await api<{ profile?: unknown }>(`/api/profiles/${editToken}`, { method: "PATCH", body })
       : await api<{ token?: string }>("/api/profiles", { method: "POST", body });
@@ -126,6 +133,11 @@ export default function CardForm() {
       return;
     }
     rememberToken(token);
+    try {
+      localStorage.removeItem(JOIN_EVENT_KEY);
+    } catch {
+      // Nothing stored.
+    }
     const pending = meetId || readPendingMeet(new URLSearchParams(window.location.search).get("meet"));
     clearPendingMeet();
     // D28: a phone in the browser gets the "Add Afterflow to your home screen" pop-up on its first

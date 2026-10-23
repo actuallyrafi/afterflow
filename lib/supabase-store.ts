@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { normalizeEventBook } from "./events";
+import { normalizeOrganiserEvent, type OrganiserEvent } from "./organiser";
 import {
   applyProfilePatch,
   resolveUpdate,
@@ -221,12 +222,25 @@ export function createSupabaseStore(url: string, serviceRoleKey: string): Store 
       fail(error);
       for (const row of data ?? []) await store.deleteProfile(String((row as { id: string }).id));
     },
-    async deleteAll() {
-      fail((await supabase.from("matches").delete().neq("id", "")).error);
-      fail((await supabase.from("blocks").delete().neq("blocker_id", "")).error);
-      const books = await supabase.from("event_books").delete().neq("profile_id", "");
-      if (books.error && !/event_books/.test(books.error.message)) fail(books.error);
-      fail((await supabase.from("profiles").delete().neq("id", "")).error);
+    async listOrganiserEvents() {
+      const { data, error } = await supabase.from("organiser_events").select("data");
+      if (error && /organiser_events/.test(error.message)) return []; // table not created yet (supabase/schema.sql)
+      fail(error);
+      return (data ?? []).map((row) => normalizeOrganiserEvent((row as { data: unknown }).data)).filter((row): row is OrganiserEvent => Boolean(row));
+    },
+    async readOrganiserEvent(id) {
+      const { data, error } = await supabase.from("organiser_events").select("data").eq("id", id).maybeSingle();
+      if (error && /organiser_events/.test(error.message)) return null;
+      fail(error);
+      return data ? normalizeOrganiserEvent((data as { data: unknown }).data) : null;
+    },
+    async updateOrganiserEvent(id, mutate) {
+      const current = await store.readOrganiserEvent(id);
+      const next = mutate(current);
+      if (!next) return current;
+      const { error } = await supabase.from("organiser_events").upsert({ id, data: next, updated_at: new Date().toISOString() }, { onConflict: "id" });
+      fail(error);
+      return next;
     },
   };
   return store;

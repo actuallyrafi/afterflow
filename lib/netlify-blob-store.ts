@@ -1,5 +1,6 @@
 import { getStore as getBlobStore, type Store as NetlifyStore } from "@netlify/blobs";
 import { normalizeEventBook, type EventBook } from "./events";
+import { normalizeOrganiserEvent, type OrganiserEvent } from "./organiser";
 import {
   resolveUpdate,
   applyProfilePatch,
@@ -30,7 +31,6 @@ type BlobClient = {
   set(key: string, data: string, options?: { onlyIfNew?: boolean; onlyIfMatch?: string }): Promise<WriteResult>;
   setJSON(key: string, data: unknown, options?: { onlyIfNew?: boolean; onlyIfMatch?: string }): Promise<WriteResult>;
   delete(key: string): Promise<void>;
-  deleteAll(): Promise<{ deletedBlobs: number }>;
   list(options: { prefix?: string; paginate: true }): AsyncIterable<{ blobs: { key: string }[] }>;
 };
 
@@ -63,6 +63,11 @@ function blockedByKey(blockedId: string, blockerId: string) {
 /** v4.1: one private book of events per person. Builds before v4.1 never read or write these keys. */
 function eventBookKey(profileId: string) {
   return `eventbooks/${profileId}`;
+}
+
+/** v4.1h: one record per organiser event (D33). The live main build never reads or writes these keys. */
+function organiserEventKey(id: string) {
+  return `orgevents/${id}`;
 }
 
 function openClient(): BlobClient {
@@ -401,8 +406,29 @@ export function createNetlifyBlobStore(injected?: BlobClient): Store {
       }
     },
 
-    async deleteAll() {
-      await blobs().deleteAll();
+    async listOrganiserEvents() {
+      const keys = await listKeys("orgevents/");
+      const rows = await Promise.all(keys.map((key) => blobs().get(key, { type: "json", ...STRONG })));
+      return rows.map((row) => normalizeOrganiserEvent(row)).filter((row): row is OrganiserEvent => Boolean(row));
+    },
+
+    async readOrganiserEvent(id: string) {
+      const data = await blobs().get(organiserEventKey(id), { type: "json", ...STRONG });
+      return data ? normalizeOrganiserEvent(data) : null;
+    },
+
+    async updateOrganiserEvent(id: string, mutate: (current: OrganiserEvent | null) => OrganiserEvent | null) {
+      const key = organiserEventKey(id);
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const current = await blobs().getWithMetadata(key, { type: "json", ...STRONG });
+        const row = current?.data ? normalizeOrganiserEvent(current.data) : null;
+        const next = mutate(row);
+        if (!next) return row;
+        const options = current?.etag ? { onlyIfMatch: current.etag } : current ? undefined : { onlyIfNew: true };
+        const wrote = await blobs().setJSON(key, next, options);
+        if (wrote.modified || (current && !current.etag)) return next;
+      }
+      throw new Error("Could not save the event. Try again.");
     },
   };
   return store;

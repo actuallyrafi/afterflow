@@ -1,3 +1,4 @@
+import { attributeConnection } from "./organiser";
 import { REMINDER_DELAY_MS } from "./event";
 import {
   activeCurrent,
@@ -514,6 +515,8 @@ export async function addMet(
   if (typeof eventChoice === "string") await fileChoice(store, me, match.id, eventChoice);
   else await fileUnderCurrent(store, me, match.id);
   if (created) await fileUnderCurrent(store, other, match.id);
+  // v4.1h (D33): a new connection between two people who joined the same organiser event counts for it.
+  if (created) await attributeConnection(store, match);
   return { status: 200, body: { connection: toCard(match, me, other, await loadBook(store, me)) } };
 }
 

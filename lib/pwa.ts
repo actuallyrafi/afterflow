@@ -61,7 +61,7 @@ export function buildManifest(token?: string | null): WebManifest {
  * Never: API calls, your own pages (/m/*, which carry your private key), connection links (/c/*),
  * card links (/meet/*), your per-user manifest (/m/{token}/manifest.webmanifest), or anything that isn't a plain GET.
  */
-export const SW_NEVER = ["/api/", "/m/", "/c/", "/meet/", "/survey", "/organiser", "/demo", "/deleted"] as const;
+export const SW_NEVER = ["/api/", "/m/", "/c/", "/meet/", "/survey", "/organiser", "/join/", "/demo", "/deleted"] as const;
 export const SW_STATIC = ["/_next/static/", "/icons/"] as const;
 export const SW_SHELL = ["/", "/how-we-built"] as const;
 

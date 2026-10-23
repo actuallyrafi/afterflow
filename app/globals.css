@@ -552,3 +552,13 @@ dialog.sheet:focus, dialog.sheet:focus-visible { outline: none; }
 .lq:not(.lq-ready) .lq-on { opacity: 0; }
 .lq:not(.lq-ready) [aria-current="page"] .lq-on, .lq:not(.lq-ready) [aria-checked="true"] .lq-on { opacity: 1; }
 .lq:not(.lq-ready) [aria-current="page"] .lq-lbl:not(.lq-on), .lq:not(.lq-ready) [aria-checked="true"] .lq-lbl:not(.lq-on) { opacity: 0; }
+
+/* v4.1h organiser pages (D33, D34). */
+.org-link { display: block; width: 100%; height: 40px; padding: 0 12px; border-radius: 12px; background: var(--fill); color: var(--ink); font: 500 13px/40px ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+.org-once { display: flex; gap: 8px; margin: 12px 8px 0; font-size: 14px; line-height: 20px; color: var(--muted); }
+.org-once b { color: var(--ink); font-weight: 700; }
+/* The danger zone sits a long scroll below everything else, so a stray tap can't reach it. */
+.org-danger { margin-top: 55vh; min-height: 0; }
+@media (min-height: 1000px) { .org-danger { margin-top: 420px; } }
+.btn-outline-quiet { background: transparent; color: var(--hot); box-shadow: inset 0 0 0 1px var(--line); font-size: 15px; font-weight: 600; }
+.btn-outline-quiet:disabled { background: transparent; color: var(--faint); }

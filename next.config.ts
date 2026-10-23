@@ -6,7 +6,18 @@ const nextConfig: NextConfig = {
   htmlLimitedBots: /.*/,
   // v4.1c PWA: the service worker is always revalidated (netlify.toml sets the same on Netlify).
   async headers() {
-    return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, max-age=0, must-revalidate" }] }];
+    // v4.1h: organiser pages are private: never cached, never indexed, no referrer.
+    const privateHeaders = [
+      { key: "Cache-Control", value: "no-store, max-age=0" },
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+      { key: "Referrer-Policy", value: "no-referrer" },
+    ];
+    return [
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, max-age=0, must-revalidate" }] },
+      { source: "/organiser", headers: privateHeaders },
+      { source: "/organiser/:path*", headers: privateHeaders },
+      { source: "/api/organiser/:path*", headers: privateHeaders },
+    ];
   },
 };
 

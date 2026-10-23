@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { normalizeEventBook, type EventBook } from "./events";
+import { normalizeOrganiserEvent, type OrganiserEvent } from "./organiser";
 import { readContacts, type Submission } from "./survey";
 
 export type Profile = {
@@ -116,6 +117,8 @@ export const STORE_VERSION = 8;
 
 /** Return the new book, or null to leave it untouched. */
 export type EventBookMutation = (current: EventBook | null) => EventBook | null;
+/** v4.1h: return the new organiser event record, or null to leave it untouched. */
+export type OrganiserEventMutation = (current: OrganiserEvent | null) => OrganiserEvent | null;
 
 export type Store = {
   version: number;
@@ -141,8 +144,12 @@ export type Store = {
   /** This person's private events and filing. Null until they first change something. */
   readEventBook(profileId: string): Promise<EventBook | null>;
   updateEventBook(profileId: string, mutate: EventBookMutation): Promise<EventBook | null>;
+  /** v4.1h organiser events (per-event organiser access, D33). */
+  listOrganiserEvents(): Promise<OrganiserEvent[]>;
+  readOrganiserEvent(id: string): Promise<OrganiserEvent | null>;
+  updateOrganiserEvent(id: string, mutate: OrganiserEventMutation): Promise<OrganiserEvent | null>;
   deleteDemos(): Promise<void>;
-  deleteAll(): Promise<void>;
+  // v4.1h: there is deliberately no deleteAll. Nothing can wipe the whole store (D34).
 };
 
 export function canonicalPair(left: string, right: string): [string, string] {
@@ -431,6 +438,11 @@ CREATE TABLE IF NOT EXISTS event_books (
   data TEXT NOT NULL DEFAULT '{}',
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS organiser_events (
+  id TEXT PRIMARY KEY,
+  data TEXT NOT NULL DEFAULT '{}',
+  updated_at TEXT NOT NULL
+);
 `;
 
 function openSqlite(filename: string): SqliteDb {
@@ -659,14 +671,38 @@ function createSqliteStore(filename: string): Store {
         DELETE FROM profiles WHERE is_demo = 1;
       `);
     },
-    async deleteAll() {
-      db.exec("DELETE FROM matches; DELETE FROM blocks; DELETE FROM event_books; DELETE FROM profiles;");
+    async listOrganiserEvents() {
+      return db
+        .prepare("SELECT data FROM organiser_events")
+        .all()
+        .map((row) => normalizeOrganiserEvent(row.data))
+        .filter((row): row is OrganiserEvent => Boolean(row));
+    },
+    async readOrganiserEvent(id) {
+      const row = db.prepare("SELECT data FROM organiser_events WHERE id = ?").get(id);
+      return row ? normalizeOrganiserEvent(row.data) : null;
+    },
+    async updateOrganiserEvent(id, mutate) {
+      const current = await store.readOrganiserEvent(id);
+      const next = mutate(current);
+      if (!next) return current;
+      db.prepare(
+        `INSERT INTO organiser_events (id, data, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
+      ).run(id, JSON.stringify(next), new Date().toISOString());
+      return next;
     },
   };
   return store;
 }
 
-type JsonDb = { profiles: Profile[]; matches: MatchRow[]; blocks: BlockRecord[]; eventBooks: Record<string, EventBook> };
+type JsonDb = {
+  profiles: Profile[];
+  matches: MatchRow[];
+  blocks: BlockRecord[];
+  eventBooks: Record<string, EventBook>;
+  organiserEvents: Record<string, OrganiserEvent>;
+};
 
 function createJsonStore(filename: string): Store {
   fs.mkdirSync(path.dirname(filename), { recursive: true });
@@ -682,9 +718,14 @@ function createJsonStore(filename: string): Store {
             .map(([id, book]) => [id, normalizeEventBook(book)] as const)
             .filter((entry): entry is [string, EventBook] => Boolean(entry[1])),
         ),
+        organiserEvents: Object.fromEntries(
+          Object.entries(((parsed as Record<string, unknown>).organiserEvents ?? {}) as Record<string, unknown>)
+            .map(([id, row]) => [id, normalizeOrganiserEvent(row)] as const)
+            .filter((entry): entry is [string, OrganiserEvent] => Boolean(entry[1])),
+        ),
       };
     } catch {
-      return { profiles: [], matches: [], blocks: [], eventBooks: {} };
+      return { profiles: [], matches: [], blocks: [], eventBooks: {}, organiserEvents: {} };
     }
   };
   const write = (data: JsonDb) => {
@@ -801,8 +842,19 @@ function createJsonStore(filename: string): Store {
       for (const id of demoIds) delete data.eventBooks[id];
       write(data);
     },
-    async deleteAll() {
-      write({ profiles: [], matches: [], blocks: [], eventBooks: {} });
+    async listOrganiserEvents() {
+      return Object.values(read().organiserEvents);
+    },
+    async readOrganiserEvent(id) {
+      return read().organiserEvents[id] ?? null;
+    },
+    async updateOrganiserEvent(id, mutate) {
+      const data = read();
+      const next = mutate(data.organiserEvents[id] ?? null);
+      if (!next) return data.organiserEvents[id] ?? null;
+      data.organiserEvents[id] = next;
+      write(data);
+      return next;
     },
   };
   return store;

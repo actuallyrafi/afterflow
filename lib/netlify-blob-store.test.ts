@@ -99,13 +99,12 @@ test("cards and connections saved before v4 still load, old fields ignored", asy
   assert.equal(added.status, 200);
 });
 
-test("blob store deletes demo profiles and can wipe the store", async () => {
+test("blob store deletes demo profiles and has no way to wipe the store", async () => {
   const store = createNetlifyBlobStore(memoryBlobs());
   await store.createProfile({ ...card("Demo Ada"), isDemo: true });
   const real = await store.createProfile(card("Real Person"));
   await store.deleteDemos();
   const left = await store.listProfiles();
   assert.deepEqual(left.map((profile) => profile.id), [real.id]);
-  await store.deleteAll();
-  assert.equal((await store.listProfiles()).length, 0);
+  assert.equal("deleteAll" in store, false);
 });
