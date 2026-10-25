@@ -82,7 +82,7 @@ test("the build log has timestamps and only real commits", () => {
   const headings = log.split("\n").filter((line) => line.startsWith("### "));
   assert.ok(headings.length >= 5);
   for (const heading of headings) {
-    assert.match(heading, /\d{1,2} Oct 2026, \d{2}:\d{2} BST/);
+    assert.match(heading, /\d{1,2} Oct 2026, \d{2}:\d{2} (BST|GMT)/);
   }
   assert.equal(/https?:\/\//.test(log), false);
   const shas = log.match(/\b[0-9a-f]{40}\b/g) ?? [];
