@@ -197,3 +197,7 @@ On the local branch v4-redesign. Preview only, not production. From Pixel's moti
 - Appearance: Pixel's patch waited for the pill to land (about 0.4s) before changing the colours, which felt slow. Now the colours start changing about 30ms after the tap with a short crossfade, while the pill finishes its glide.
 - The contact app switch takes effect at once too, so typing straight after a tap goes into the right app's field. The calendar time still commits when its pill lands.
 - 136 tests pass. 90 cross-engine checks pass in each of Chromium, Firefox and WebKit.
+
+### 25 Oct 2026, 08:18 GMT — v4 is on GitHub
+
+Per Tanvir ("just ship it fully on github for now"): the v4 redesign (v4.1 to v4.1i) is merged into `main` (fast-forward from 500bba0) and pushed to GitHub. The live site is not redeployed: afterflow-f1.netlify.app is still the earlier version, so it still has the old organiser page with its global "Delete all data" button until a production deploy is done. The Netlify site isn't linked to the GitHub repo, so a push doesn't deploy anything. 136 tests pass and the production build is clean on `main`. No secrets in the pushed code or history; the old default organiser word was already public in earlier history and was left as it is.
